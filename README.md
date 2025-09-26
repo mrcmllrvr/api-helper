@@ -1,9 +1,11 @@
 # API Helper
 
 # Running App
-```
+```bash
 # Install requirements
 pip install -r requirements.txt
+
+# Create an .env file with the KEY: OPENAI_API_KEY
 
 # Run the App from the Root
 uvicorn src.app:app --reload
