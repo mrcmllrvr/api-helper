@@ -1,0 +1,408 @@
+[
+  {
+    "content": "# Operation: Chat API (v1)\n\n**Endpoint:** `POST /v1/chat`\n\n\n**Description:**\nGenerates a text response to a user message.\nTo learn how to use the Chat API and RAG follow our [Text Generation guides](https://docs.cohere.com/docs/chat-api).\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n- **`Accepts`** (header, optional, string): Pass text/event-stream to receive the streamed response as server-sent events. The default is `\\n` delimited events.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "chat",
+      "path": "/v1/chat",
+      "method": "POST",
+      "summary": "Chat API (v1)",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Chat API (v2)\n\n**Endpoint:** `POST /v2/chat`\n\n\n**Description:**\nGenerates a text response to a user message and streams it down, token by token. To learn how to use the Chat API with streaming follow our [Text Generation guides](https://docs.cohere.com/v2/docs/chat-api).\n\nFollow the [Migration Guide](https://docs.cohere.com/v2/docs/migrating-v1-to-v2) for instructions on moving from API v1 to API v2.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "chatv2",
+      "path": "/v2/chat",
+      "method": "POST",
+      "summary": "Chat API (v2)",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Generate\n\n**Endpoint:** `POST /v1/generate`\n\n\n**Description:**\n<Warning>\nThis API is marked as \"Legacy\" and is no longer maintained. Follow the [migration guide](https://docs.cohere.com/docs/migrating-from-cogenerate-to-cochat) to start using the Chat API.\n</Warning>\nGenerates realistic text conditioned on a given input.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "generate",
+      "path": "/v1/generate",
+      "method": "POST",
+      "summary": "Generate",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Embed API (v1)\n\n**Endpoint:** `POST /v1/embed`\n\n\n**Description:**\nThis endpoint returns text and image embeddings. An embedding is a list of floating point numbers that captures semantic information about the content that it represents.\n\nEmbeddings can be used to create classifiers as well as empower semantic search. To learn more about embeddings, see the embedding page.\n\nIf you want to learn more how to use the embedding model, have a look at the [Semantic Search Guide](https://docs.cohere.com/docs/semantic-search).\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "embed",
+      "path": "/v1/embed",
+      "method": "POST",
+      "summary": "Embed API (v1)",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Embed API (v2)\n\n**Endpoint:** `POST /v2/embed`\n\n\n**Description:**\nThis endpoint returns text embeddings. An embedding is a list of floating point numbers that captures semantic information about the text that it represents.\n\nEmbeddings can be used to create text classifiers as well as empower semantic search. To learn more about embeddings, see the embedding page.\n\nIf you want to learn more how to use the embedding model, have a look at the [Semantic Search Guide](https://docs.cohere.com/docs/semantic-search).\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "embedv2",
+      "path": "/v2/embed",
+      "method": "POST",
+      "summary": "Embed API (v2)",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Create an Embed Job\n\n**Endpoint:** `POST /v1/embed-jobs`\n\n**Tags:** /embed-jobs\n\n\n**Description:**\nThis API launches an async Embed job for a [Dataset](https://docs.cohere.com/docs/datasets) of type `embed-input`. The result of a completed embed job is new Dataset of type `embed-output`, which contains the original text entries and the corresponding embeddings.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\n- **`model`** (string, required): ID of the embedding model. Available models and corresponding embedding dimensions: - `embed-english-v3.0` : 1024 - `embed-multilingual-v3.0` : 1024 - `embed-english-light-v3.0` : 384 - `embed-multilingual-light-v3.0` : 384\n- **`dataset_id`** (string, required): ID of a [Dataset](https://docs.cohere.com/docs/datasets). The Dataset must be of type `embed-input` and must have a validation status `Validated`\n- **`input_type`** (N/A, required): No description.\n- **`name`** (string, optional): The name of the embed job.\n- **`embedding_types`** (array, optional): Specifies the types of embeddings you want to get back. Not required and default is None, which returns the Embed Floats response type. Can be one or more of the following types. * `\"float\"`: Use this when you want to get back the default float embeddings. Valid for all models. * `\"int8\"`: Use this when you want to get back signed int8 embeddings. Valid for v3 and newer model versions. * `\"uint8\"`: Use this when you want to get back unsigned int8 embeddings. Valid for v3 and newer model versions. * `\"binary\"`: Use this when you want to get back signed binary embeddings. Valid for v3 and newer model versions. * `\"ubinary\"`: Use this when you want to get back unsigned binary embeddings. Valid for v3 and newer model versions.\n- **`truncate`** (string, optional): One of `START|END` to specify how the API will handle inputs longer than the maximum token length. Passing `START` will discard the start of the input. `END` will discard the end of the input. In both cases, input is discarded until the remaining input is exactly the maximum input token length for the model.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "create-embed-job",
+      "path": "/v1/embed-jobs",
+      "method": "POST",
+      "summary": "Create an Embed Job",
+      "tags": [
+        "/embed-jobs"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: List Embed Jobs\n\n**Endpoint:** `GET /v1/embed-jobs`\n\n**Tags:** /embed-jobs\n\n\n**Description:**\nThe list embed job endpoint allows users to view all embed jobs history for that specific user.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "list-embed-jobs",
+      "path": "/v1/embed-jobs",
+      "method": "GET",
+      "summary": "List Embed Jobs",
+      "tags": [
+        "/embed-jobs"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Fetch an Embed Job\n\n**Endpoint:** `GET /v1/embed-jobs/{id}`\n\n**Tags:** /embed-jobs\n\n\n**Description:**\nThis API retrieves the details about an embed job started by the same user.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): The ID of the embed job to retrieve.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "get-embed-job",
+      "path": "/v1/embed-jobs/{id}",
+      "method": "GET",
+      "summary": "Fetch an Embed Job",
+      "tags": [
+        "/embed-jobs"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Cancel an Embed Job\n\n**Endpoint:** `POST /v1/embed-jobs/{id}/cancel`\n\n**Tags:** /embed-jobs\n\n\n**Description:**\nThis API allows users to cancel an active embed job. Once invoked, the embedding process will be terminated, and users will be charged for the embeddings processed up to the cancellation point. It's important to note that partial results will not be available to users after cancellation.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): The ID of the embed job to cancel.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "cancel-embed-job",
+      "path": "/v1/embed-jobs/{id}/cancel",
+      "method": "POST",
+      "summary": "Cancel an Embed Job",
+      "tags": [
+        "/embed-jobs"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Rerank API (v1)\n\n**Endpoint:** `POST /v1/rerank`\n\n\n**Description:**\nThis endpoint takes in a query and a list of texts and produces an ordered array with each text assigned a relevance score.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "rerank",
+      "path": "/v1/rerank",
+      "method": "POST",
+      "summary": "Rerank API (v1)",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Rerank API (v2)\n\n**Endpoint:** `POST /v2/rerank`\n\n\n**Description:**\nThis endpoint takes in a query and a list of texts and produces an ordered array with each text assigned a relevance score.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "rerankv2",
+      "path": "/v2/rerank",
+      "method": "POST",
+      "summary": "Rerank API (v2)",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Classify\n\n**Endpoint:** `POST /v1/classify`\n\n\n**Description:**\nThis endpoint makes a prediction about which label fits the specified text inputs best. To make a prediction, Classify uses the provided `examples` of text + label pairs as a reference.\nNote: [Fine-tuned models](https://docs.cohere.com/docs/classify-fine-tuning) trained on classification examples don't require the `examples` parameter to be passed in explicitly.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "classify",
+      "path": "/v1/classify",
+      "method": "POST",
+      "summary": "Classify",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: List Datasets\n\n**Endpoint:** `GET /v1/datasets`\n\n**Tags:** /datasets\n\n\n**Description:**\nList datasets that have been created.\n\n\n**Parameters:**\n\n- **`datasetType`** (query, optional, string): optional filter by dataset type\n\n- **`before`** (query, optional, string): optional filter before a date\n\n- **`after`** (query, optional, string): optional filter after a date\n\n- **`limit`** (query, optional, number): optional limit to number of results\n\n- **`offset`** (query, optional, number): optional offset to start of results\n\n- **`validationStatus`** (query, optional, string): optional filter by validation status\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "list-datasets",
+      "path": "/v1/datasets",
+      "method": "GET",
+      "summary": "List Datasets",
+      "tags": [
+        "/datasets"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Get Dataset Usage\n\n**Endpoint:** `GET /v1/datasets/usage`\n\n**Tags:** /datasets\n\n\n**Description:**\nView the dataset storage usage for your Organization. Each Organization can have up to 10GB of storage across all their users.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "get-dataset-usage",
+      "path": "/v1/datasets/usage",
+      "method": "GET",
+      "summary": "Get Dataset Usage",
+      "tags": [
+        "/datasets"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Get a Dataset\n\n**Endpoint:** `GET /v1/datasets/{id}`\n\n**Tags:** /datasets\n\n\n**Description:**\nRetrieve a dataset by ID. See ['Datasets'](https://docs.cohere.com/docs/datasets) for more information.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): No description.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "get-dataset",
+      "path": "/v1/datasets/{id}",
+      "method": "GET",
+      "summary": "Get a Dataset",
+      "tags": [
+        "/datasets"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Delete a Dataset\n\n**Endpoint:** `DELETE /v1/datasets/{id}`\n\n**Tags:** /datasets\n\n\n**Description:**\nDelete a dataset by ID. Datasets are automatically deleted after 30 days, but they can also be deleted manually.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): No description.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "delete-dataset",
+      "path": "/v1/datasets/{id}",
+      "method": "DELETE",
+      "summary": "Delete a Dataset",
+      "tags": [
+        "/datasets"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Summarize\n\n**Endpoint:** `POST /v1/summarize`\n\n\n**Description:**\n<Warning>\nThis API is marked as \"Legacy\" and is no longer maintained. Follow the [migration guide](https://docs.cohere.com/docs/migrating-from-cogenerate-to-cochat) to start using the Chat API.\n</Warning>\nGenerates a summary in English for a given text.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "summarize",
+      "path": "/v1/summarize",
+      "method": "POST",
+      "summary": "Summarize",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Tokenize\n\n**Endpoint:** `POST /v1/tokenize`\n\n\n**Description:**\nThis endpoint splits input text into smaller units called tokens using byte-pair encoding (BPE). To learn more about tokenization and byte pair encoding, see the tokens page.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "tokenize",
+      "path": "/v1/tokenize",
+      "method": "POST",
+      "summary": "Tokenize",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Detokenize\n\n**Endpoint:** `POST /v1/detokenize`\n\n\n**Description:**\nThis endpoint takes tokens using byte-pair encoding and returns their text representation. To learn more about tokenization and byte pair encoding, see the tokens page.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "detokenize",
+      "path": "/v1/detokenize",
+      "method": "POST",
+      "summary": "Detokenize",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Detokenize\n\n**Endpoint:** `PARAMETERS /v1/detokenize`\n\n\n**Description:**\nThis endpoint takes tokens using byte-pair encoding and returns their text representation. To learn more about tokenization and byte pair encoding, see the tokens page.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "detokenize",
+      "path": "/v1/detokenize",
+      "method": "PARAMETERS",
+      "summary": "Detokenize",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: List Connectors\n\n**Endpoint:** `GET /v1/connectors`\n\n**Tags:** /connectors\n\n\n**Description:**\nReturns a list of connectors ordered by descending creation date (newer first). See ['Managing your Connector'](https://docs.cohere.com/docs/managing-your-connector) for more information.\n\n\n**Parameters:**\n\n- **`limit`** (query, optional, number): Maximum number of connectors to return [0, 100].\n\n- **`offset`** (query, optional, number): Number of connectors to skip before returning results [0, inf].\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "list-connectors",
+      "path": "/v1/connectors",
+      "method": "GET",
+      "summary": "List Connectors",
+      "tags": [
+        "/connectors"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Create a Connector\n\n**Endpoint:** `POST /v1/connectors`\n\n**Tags:** /connectors\n\n\n**Description:**\nCreates a new connector. The connector is tested during registration and will cancel registration when the test is unsuccessful. See ['Creating and Deploying a Connector'](https://docs.cohere.com/v1/docs/creating-and-deploying-a-connector) for more information.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\n- **`name`** (string, required): A human-readable name for the connector.\n- **`description`** (string, optional): A description of the connector.\n- **`url`** (string, required): The URL of the connector that will be used to search for documents.\n- **`excludes`** (array, optional): A list of fields to exclude from the prompt (fields remain in the document).\n- **`oauth`** (N/A, optional): The OAuth 2.0 configuration for the connector. Cannot be specified if service_auth is specified.\n- **`active`** (boolean, optional): Whether the connector is active or not.\n- **`continue_on_failure`** (boolean, optional): Whether a chat request should continue or not if the request to this connector fails.\n- **`service_auth`** (N/A, optional): The service to service authentication configuration for the connector. Cannot be specified if oauth is specified.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "create-connector",
+      "path": "/v1/connectors",
+      "method": "POST",
+      "summary": "Create a Connector",
+      "tags": [
+        "/connectors"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Get a Connector\n\n**Endpoint:** `GET /v1/connectors/{id}`\n\n**Tags:** /connectors\n\n\n**Description:**\nRetrieve a connector by ID. See ['Connectors'](https://docs.cohere.com/docs/connectors) for more information.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): The ID of the connector to retrieve.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "get-connector",
+      "path": "/v1/connectors/{id}",
+      "method": "GET",
+      "summary": "Get a Connector",
+      "tags": [
+        "/connectors"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Update a Connector\n\n**Endpoint:** `PATCH /v1/connectors/{id}`\n\n**Tags:** /connectors\n\n\n**Description:**\nUpdate a connector by ID. Omitted fields will not be updated. See ['Managing your Connector'](https://docs.cohere.com/docs/managing-your-connector) for more information.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): The ID of the connector to update.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\n- **`name`** (string, optional): A human-readable name for the connector.\n- **`url`** (string, optional): The URL of the connector that will be used to search for documents.\n- **`excludes`** (array, optional): A list of fields to exclude from the prompt (fields remain in the document).\n- **`oauth`** (N/A, optional): The OAuth 2.0 configuration for the connector. Cannot be specified if service_auth is specified.\n- **`active`** (boolean, optional): No description.\n- **`continue_on_failure`** (boolean, optional): No description.\n- **`service_auth`** (N/A, optional): The service to service authentication configuration for the connector. Cannot be specified if oauth is specified.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "update-connector",
+      "path": "/v1/connectors/{id}",
+      "method": "PATCH",
+      "summary": "Update a Connector",
+      "tags": [
+        "/connectors"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Delete a Connector\n\n**Endpoint:** `DELETE /v1/connectors/{id}`\n\n**Tags:** /connectors\n\n\n**Description:**\nDelete a connector by ID. See ['Connectors'](https://docs.cohere.com/docs/connectors) for more information.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): The ID of the connector to delete.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "delete-connector",
+      "path": "/v1/connectors/{id}",
+      "method": "DELETE",
+      "summary": "Delete a Connector",
+      "tags": [
+        "/connectors"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Authorize with oAuth\n\n**Endpoint:** `POST /v1/connectors/{id}/oauth/authorize`\n\n**Tags:** /connectors\n\n\n**Description:**\nAuthorize the connector with the given ID for the connector oauth app.  See ['Connector Authentication'](https://docs.cohere.com/docs/connector-authentication) for more information.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): The ID of the connector to authorize.\n\n- **`after_token_redirect`** (query, optional, string): The URL to redirect to after the connector has been authorized.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "oAuthAuthorize-connector",
+      "path": "/v1/connectors/{id}/oauth/authorize",
+      "method": "POST",
+      "summary": "Authorize with oAuth",
+      "tags": [
+        "/connectors"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Get a Model\n\n**Endpoint:** `GET /v1/models/{model}`\n\n**Tags:** /models\n\n\n**Description:**\nReturns the details of a model, provided its name.\n\n\n**Parameters:**\n\n- **`model`** (path, required, string): No description.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK",
+    "metadata": {
+      "operationId": "get-model",
+      "path": "/v1/models/{model}",
+      "method": "GET",
+      "summary": "Get a Model",
+      "tags": [
+        "/models"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: List Models\n\n**Endpoint:** `GET /v1/models`\n\n**Tags:** /models\n\n\n**Description:**\nReturns a list of models available for use. The list contains models from Cohere as well as your fine-tuned models.\n\n\n**Parameters:**\n\n- **`page_size`** (query, optional, number): Maximum number of models to include in a page Defaults to `20`, min value of `1`, max value of `1000`.\n\n- **`page_token`** (query, optional, string): Page token provided in the `next_page_token` field of a previous response.\n\n- **`endpoint`** (query, optional, string): When provided, filters the list of models to only those that are compatible with the specified endpoint.\n\n- **`default_only`** (query, optional, boolean): When provided, filters the list of models to only the default model to the endpoint. This parameter is only valid when `endpoint` is provided.\n\n\n**Successful Response (200):**\nOK\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "list-models",
+      "path": "/v1/models",
+      "method": "GET",
+      "summary": "List Models",
+      "tags": [
+        "/models"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Check API key\n\n**Endpoint:** `POST /v1/check-api-key`\n\n\n**Description:**\nChecks that the api key in the Authorization header is valid and active\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nOK",
+    "metadata": {
+      "operationId": "checkAPIKey",
+      "path": "/v1/check-api-key",
+      "method": "POST",
+      "summary": "Check API key",
+      "tags": []
+    }
+  },
+  {
+    "content": "# Operation: Lists fine-tuned models.\n\n**Endpoint:** `GET /v1/finetuning/finetuned-models`\n\n**Tags:** /finetuning\n\n\n**Description:**\nReturns a list of fine-tuned models that the user has access to.\n\n\n**Parameters:**\n\n- **`page_size`** (query, optional, integer): Maximum number of results to be returned by the server. If 0, defaults to 50.\n\n- **`page_token`** (query, optional, string): Request a specific page of the list results.\n\n- **`order_by`** (query, optional, string): Comma separated list of fields. For example: \"created_at,name\". The default sorting order is ascending. To specify descending order for a field, append \" desc\" to the field name. For example: \"created_at desc,name\". Supported sorting fields: - created_at (default)\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "ListFinetunedModels",
+      "path": "/v1/finetuning/finetuned-models",
+      "method": "GET",
+      "summary": "Lists fine-tuned models.",
+      "tags": [
+        "/finetuning"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Trains and deploys a fine-tuned model.\n\n**Endpoint:** `POST /v1/finetuning/finetuned-models`\n\n**Tags:** /finetuning\n\n\n**Description:**\nCreates a new fine-tuned model. The model will be trained on the dataset specified in the request body. The training process may take some time, and the model will be available once the training is complete.\n\n\n**Parameters:**\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\n- **`id`** (string, optional): read-only. FinetunedModel ID.\n- **`name`** (string, required): FinetunedModel name (e.g. `foobar`).\n- **`creator_id`** (string, optional): read-only. User ID of the creator.\n- **`organization_id`** (string, optional): read-only. Organization ID.\n- **`settings`** (N/A, required): FinetunedModel settings such as dataset, hyperparameters...\n- **`status`** (N/A, optional): read-only. Current stage in the life-cycle of the fine-tuned model.\n- **`created_at`** (string, optional): read-only. Creation timestamp.\n- **`updated_at`** (string, optional): read-only. Latest update timestamp.\n- **`completed_at`** (string, optional): read-only. Timestamp for the completed fine-tuning.\n- **`last_used`** (string, optional): read-only. Deprecated: Timestamp for the latest request to this fine-tuned model.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "CreateFinetunedModel",
+      "path": "/v1/finetuning/finetuned-models",
+      "method": "POST",
+      "summary": "Trains and deploys a fine-tuned model.",
+      "tags": [
+        "/finetuning"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Updates a fine-tuned model.\n\n**Endpoint:** `PATCH /v1/finetuning/finetuned-models/{id}`\n\n**Tags:** /finetuning\n\n\n**Description:**\nUpdates the fine-tuned model with the given ID. The model will be updated with the new settings and name provided in the request body.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): FinetunedModel ID.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Request Body:**\n\nThe request body is a `application/json` object with the following key properties:\nNo schema reference provided.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "UpdateFinetunedModel",
+      "path": "/v1/finetuning/finetuned-models/{id}",
+      "method": "PATCH",
+      "summary": "Updates a fine-tuned model.",
+      "tags": [
+        "/finetuning"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Returns a fine-tuned model by ID.\n\n**Endpoint:** `GET /v1/finetuning/finetuned-models/{id}`\n\n**Tags:** /finetuning\n\n\n**Description:**\nRetrieve a fine-tuned model by its ID.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): The fine-tuned model ID.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "GetFinetunedModel",
+      "path": "/v1/finetuning/finetuned-models/{id}",
+      "method": "GET",
+      "summary": "Returns a fine-tuned model by ID.",
+      "tags": [
+        "/finetuning"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Deletes a fine-tuned model.\n\n**Endpoint:** `DELETE /v1/finetuning/finetuned-models/{id}`\n\n**Tags:** /finetuning\n\n\n**Description:**\nDeletes a fine-tuned model. The model will be removed from the system and will no longer be available for use.\nThis operation is irreversible.\n\n\n**Parameters:**\n\n- **`id`** (path, required, string): The fine-tuned model ID.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "DeleteFinetunedModel",
+      "path": "/v1/finetuning/finetuned-models/{id}",
+      "method": "DELETE",
+      "summary": "Deletes a fine-tuned model.",
+      "tags": [
+        "/finetuning"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Fetch history of statuses for a fine-tuned model.\n\n**Endpoint:** `GET /v1/finetuning/finetuned-models/{finetuned_model_id}/events`\n\n**Tags:** /finetuning\n\n\n**Description:**\nReturns a list of events that occurred during the life-cycle of the fine-tuned model.\nThe events are ordered by creation time, with the most recent event first.\nThe list can be paginated using `page_size` and `page_token` parameters.\n\n\n**Parameters:**\n\n- **`finetuned_model_id`** (path, required, string): The parent fine-tuned model ID.\n\n- **`page_size`** (query, optional, integer): Maximum number of results to be returned by the server. If 0, defaults to 50.\n\n- **`page_token`** (query, optional, string): Request a specific page of the list results.\n\n- **`order_by`** (query, optional, string): Comma separated list of fields. For example: \"created_at,name\". The default sorting order is ascending. To specify descending order for a field, append \" desc\" to the field name. For example: \"created_at desc,name\". Supported sorting fields: - created_at (default)\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "ListEvents",
+      "path": "/v1/finetuning/finetuned-models/{finetuned_model_id}/events",
+      "method": "GET",
+      "summary": "Fetch history of statuses for a fine-tuned model.",
+      "tags": [
+        "/finetuning"
+      ]
+    }
+  },
+  {
+    "content": "# Operation: Retrieve training metrics for fine-tuned models.\n\n**Endpoint:** `GET /v1/finetuning/finetuned-models/{finetuned_model_id}/training-step-metrics`\n\n**Tags:** /finetuning\n\n\n**Description:**\nReturns a list of metrics measured during the training of a fine-tuned model.\nThe metrics are ordered by step number, with the most recent step first.\nThe list can be paginated using `page_size` and `page_token` parameters.\n\n\n**Parameters:**\n\n- **`finetuned_model_id`** (path, required, string): The parent fine-tuned model ID.\n\n- **`page_size`** (query, optional, integer): Maximum number of results to be returned by the server. If 0, defaults to 50.\n\n- **`page_token`** (query, optional, string): Request a specific page of the list results.\n\n- **`X-Client-Name`** (header, optional, string): The name of the project that is making the request.\n\n\n**Successful Response (200):**\nA successful response.\n\n\n**Code Examples:**",
+    "metadata": {
+      "operationId": "ListTrainingStepMetrics",
+      "path": "/v1/finetuning/finetuned-models/{finetuned_model_id}/training-step-metrics",
+      "method": "GET",
+      "summary": "Retrieve training metrics for fine-tuned models.",
+      "tags": [
+        "/finetuning"
+      ]
+    }
+  }
+]
