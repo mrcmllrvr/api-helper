@@ -1,9 +1,26 @@
 # streamlit_app.py
-import os, glob, json
+import os
+import glob
+import json
 from pathlib import Path
+
 import numpy as np
 import streamlit as st
 import yaml
+
+# =========================
+#  Streamlit page setup
+# =========================
+st.set_page_config(page_title="API Docs Chatbot (POC2)", page_icon="📚", layout="wide")
+st.title("📚 API Docs Chatbot (POC2)")
+st.caption(
+    "Ask questions about API docs in the `data/` folder (Markdown/TXT/OpenAPI YAML/JSON). "
+    "Tab 2 can scan OpenAPI files for duplicate/overlapping endpoints."
+)
+st.sidebar.write("Streamlit version:", st.__version__)
+
+DOC_DIR = Path("data")
+DOC_DIR.mkdir(exist_ok=True)
 
 # =========================
 #  Model selection (OpenAI or Azure OpenAI)
@@ -30,21 +47,19 @@ except Exception:
     EMBED_MODEL = None
 
 # =========================
-#  Streamlit page setup
+#  Helpers
 # =========================
-st.set_page_config(page_title="API Docs Chatbot (POC2)", page_icon="📚", layout="wide")
-st.title("📚 API Docs Chatbot (POC2)")
-st.caption("Ask questions about API docs in the `data/` folder. Tab 2 can scan OpenAPI files for duplicate/overlapping endpoints.")
+def _ensure_models():
+    if not client or not CHAT_MODEL or not EMBED_MODEL:
+        raise RuntimeError(
+            "Model not configured. Set OpenAI or Azure OpenAI secrets.\n\n"
+            "OpenAI: OPENAI_API_KEY, OPENAI_CHAT_MODEL, OPENAI_EMBED_MODEL\n"
+            "Azure:  AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_VERSION,\n"
+            "        AZURE_OPENAI_CHAT_DEPLOYMENT, AZURE_OPENAI_EMBED_DEPLOYMENT"
+        )
 
-DOC_DIR = Path("data")
-DOC_DIR.mkdir(exist_ok=True)
-
-# =========================
-#  Utilities
-# =========================
-def chunk_text(txt, max_chars=1200):
-    chunks, cur = [], []
-    count = 0
+def chunk_text(txt: str, max_chars: int = 1200):
+    chunks, cur, count = [], [], 0
     for line in txt.splitlines():
         if count + len(line) + 1 > max_chars and cur:
             chunks.append("\n".join(cur).strip())
@@ -57,19 +72,19 @@ def chunk_text(txt, max_chars=1200):
 
 @st.cache_data(show_spinner=False)
 def load_repo_docs():
-    """Load .md/.txt and OpenAPI .yaml/.json under data/ as chunks + sources."""
+    """Load .md/.txt + OpenAPI .yaml/.json under data/ into text chunks with source labels."""
     texts, sources = [], []
     for p in glob.glob(str(DOC_DIR / "**/*"), recursive=True):
         if os.path.isdir(p):
             continue
         ext = Path(p).suffix.lower()
         try:
-            if ext in [".md", ".txt"]:
+            if ext in (".md", ".txt"):
                 raw = Path(p).read_text(encoding="utf-8", errors="ignore")
                 for ch in chunk_text(raw):
                     texts.append(ch)
                     sources.append(p)
-            elif ext in [".yaml", ".yml", ".json"]:
+            elif ext in (".yaml", ".yml", ".json"):
                 raw = Path(p).read_text(encoding="utf-8", errors="ignore")
                 spec = yaml.safe_load(raw) if ext in (".yaml", ".yml") else json.loads(raw)
                 base = (spec.get("info") or {}).get("title") or Path(p).stem
@@ -85,12 +100,12 @@ def load_repo_docs():
                             texts.append(ch)
                             sources.append(f"{p} {method.upper()} {path}")
         except Exception:
+            # Skip unreadable files
             continue
     return texts, sources
 
 def embed_texts(texts):
-    if not client or not EMBED_MODEL:
-        raise RuntimeError("Model client not configured. Set your API secrets.")
+    _ensure_models()
     resp = client.embeddings.create(model=EMBED_MODEL, input=texts)
     return np.array([d.embedding for d in resp.data], dtype=np.float32)
 
@@ -107,12 +122,160 @@ def build_index():
     embs = embed_texts(texts)
     return texts, sources, embs
 
-def answer_with_context(question, k=5):
+def answer_with_context(question: str, k: int = 5):
     texts, sources, embs = build_index()
     if len(texts) == 0:
-        return "No docs found in data/. Add .md/.txt/.yaml/.json files.", []
+        return "No docs found in `data/`. Add .md/.txt/.yaml/.json files first.", []
 
     q_emb = embed_texts([question])
     sims = cosine_sim(q_emb, embs)[0]
     idx = np.argsort(-sims)[:k]
-    context_blocks_
+    context_blocks = [texts[i] for i in idx]
+    context_srcs = [sources[i] for i in idx]
+
+    prompt = f"""You are a helpful assistant answering questions about API documentation.
+Cite the most relevant file paths and endpoints from the provided context.
+
+Question:
+{question}
+
+Context (top {k} chunks):
+{"\n\n---\n\n".join(context_blocks)}
+
+Answer clearly, then list the sources you used."""
+    _ensure_models()
+    resp = client.chat.completions.create(
+        model=CHAT_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+    answer = resp.choices[0].message.content
+    return answer, context_srcs
+
+def load_openapi_ops():
+    """Flatten OpenAPI operations across all specs under data/."""
+    ops = []
+    for p in glob.glob(str(DOC_DIR / "**/*"), recursive=True):
+        if os.path.isdir(p):
+            continue
+        ext = Path(p).suffix.lower()
+        if ext not in (".yaml", ".yml", ".json"):
+            continue
+        try:
+            raw = Path(p).read_text(encoding="utf-8", errors="ignore")
+            spec = yaml.safe_load(raw) if ext in (".yaml", ".yml") else json.loads(raw)
+            title = (spec.get("info") or {}).get("title") or Path(p).stem
+            for path, item in (spec.get("paths") or {}).items():
+                for method, op in (item or {}).items():
+                    if not isinstance(op, dict):
+                        continue
+                    ops.append({
+                        "api_file": str(p),
+                        "api_title": title,
+                        "method": method.upper(),
+                        "path": path,
+                        "operationId": op.get("operationId", ""),
+                        "summary": (op.get("summary") or "").strip(),
+                        "desc": (op.get("description") or "").strip(),
+                    })
+        except Exception:
+            continue
+    return ops
+
+@st.cache_resource(show_spinner=False)
+def duplicate_index():
+    ops = load_openapi_ops()
+    if not ops:
+        return ops, np.zeros((0, 1))
+    strings = [f"{o['method']} {o['path']} :: {o['summary']} :: {o['desc']}" for o in ops]
+    embs = embed_texts(strings)
+    embs = embs / (np.linalg.norm(embs, axis=1, keepdims=True) + 1e-9)
+    return ops, embs
+
+def find_duplicates(threshold: float = 0.90, top_k: int = 3):
+    ops, embs = duplicate_index()
+    rows = []
+    if len(ops) < 2:
+        return rows
+    sims = embs @ embs.T
+    n = len(ops)
+    for i in range(n):
+        order = np.argsort(-sims[i])
+        count = 0
+        for j in order:
+            if j == i:
+                continue
+            if sims[i, j] >= threshold:
+                rows.append((ops[i], ops[j], float(sims[i, j])))
+                count += 1
+                if count >= top_k:
+                    break
+    return rows
+
+# =========================
+#  UI (two tabs)
+# =========================
+tab1, tab2 = st.tabs(["💬 Chat with API Docs", "🧭 Duplicate Endpoint Checker"])
+
+# ---- Tab 1: Chat UI ----
+with tab1:
+    texts, sources = load_repo_docs()
+    if not texts:
+        st.warning("No files found in `data/`. Add .md/.txt or OpenAPI .yaml/.json first.")
+    else:
+        st.success(f"Loaded {len(texts)} chunk(s) from {len(set(sources))} document locations.")
+
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = [("assistant", "Hi! Ask me anything about the API docs in the `data/` folder.")]
+
+    # display history
+    for role, msg in st.session_state["messages"]:
+        with st.chat_message(role):
+            st.markdown(msg)
+
+    # chat input at the bottom
+    user_q = st.chat_input("Type your question…")
+    if user_q:
+        st.session_state["messages"].append(("user", user_q))
+        with st.chat_message("user"):
+            st.markdown(user_q)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking…"):
+                try:
+                    answer, srcs = answer_with_context(user_q)
+                except Exception as e:
+                    answer, srcs = f"⚠️ {e}", []
+            st.markdown(answer)
+            if srcs:
+                st.caption("Sources I looked at:")
+                for s in srcs:
+                    st.code(s, language="text")
+        st.session_state["messages"].append(("assistant", answer))
+
+# ---- Tab 2: Duplicate endpoints ----
+with tab2:
+    st.write("Find similar/duplicate operations across OpenAPI files in `data/`.")
+    thr = st.slider("Similarity threshold", 0.70, 0.99, 0.90, 0.01)
+    k = st.slider("Max matches per endpoint", 1, 10, 3, 1)
+
+    if st.button("Scan for duplicates"):
+        with st.spinner("Scanning OpenAPI specs…"):
+            try:
+                rows = find_duplicates(threshold=thr, top_k=k)
+            except Exception as e:
+                rows = []
+                st.error(f"Embedding/scan failed: {e}")
+
+        if not rows:
+            st.success("No potential duplicates found (or no OpenAPI files present).")
+        else:
+            for a, b, s in rows[:200]:
+                st.markdown(
+                    f"**{a['method']} {a['path']}**  ↔  **{b['method']} {b['path']}**  ·  similarity: `{s:.2f}`"
+                )
+                st.caption(f"{a['api_title']} ({a['api_file']})  ↔  {b['api_title']} ({b['api_file']})")
+                if a.get("summary") or b.get("summary"):
+                    st.write(f"- {a['summary'] or '(no summary)'}")
+                    st.write(f"- {b['summary'] or '(no summary)'}")
+                st.divider()
