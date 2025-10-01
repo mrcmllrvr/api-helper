@@ -17,7 +17,7 @@ st.caption(
     "Ask questions about API docs in the `data/` folder (Markdown/TXT/OpenAPI YAML/JSON). "
     "Tab 2 can scan OpenAPI files for duplicate/overlapping endpoints."
 )
-st.sidebar.write("Streamlit version:", st.__version__)
+# st.sidebar.write("Streamlit version:", st.__version__)
 
 DOC_DIR = Path("data")
 DOC_DIR.mkdir(exist_ok=True)
@@ -279,3 +279,4 @@ with tab2:
                     st.write(f"- {a['summary'] or '(no summary)'}")
                     st.write(f"- {b['summary'] or '(no summary)'}")
                 st.divider()
+
