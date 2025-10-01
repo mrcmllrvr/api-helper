@@ -1,41 +1,72 @@
 # streamlit_app.py
-import os, glob, json
+import os
+import glob
+import json
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
 import streamlit as st
 import yaml
 
-# =========================
-# Page setup (NO SIDEBAR)
-# =========================
+# -----------------------------
+# Page setup (hide/collapse sidebar, wide layout)
+# -----------------------------
 st.set_page_config(
     page_title="API Docs Chatbot (POC2)",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-# Hide sidebar completely
-st.markdown("""
-<style>
-  [data-testid="stSidebar"], [data-testid="stSidebarNav"] { display: none !important; }
-  /* Make main container a bit wider */
-  .block-container { padding-top: 2rem; padding-bottom: 96px; max-width: 1200px; }
-</style>
-""", unsafe_allow_html=True)
+
+# --- Minimal CSS: hide sidebar + make chat input sticky ---
+st.markdown(
+    """
+    <style>
+      /* Hide the sidebar and hamburger completely */
+      [data-testid="stSidebar"], [data-testid="stSidebarNav"], [data-testid="baseButton-headerNoPadding"] {
+        display: none !important;
+      }
+      /* Make the chat input sticky at the bottom of the viewport */
+      [data-testid="stChatInput"] {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        padding: 0.75rem 1.25rem !important;
+        background: var(--background-color);
+        z-index: 9999 !important;
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+      }
+      /* Add bottom padding to the main block so content isn't hidden behind sticky input */
+      .block-container {
+        padding-bottom: 8rem !important;
+      }
+      /* Make the tabs sit a bit lower so title has breathing room */
+      .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+      }
+      .stTabs [data-baseweb="tab"] {
+        padding: 0.5rem 0.75rem;
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.title("📚 API Docs Chatbot (POC2)")
-st.caption("Ask questions about API docs in the `data/` folder (Markdown/TXT/OpenAPI YAML/JSON). "
-           "Tab 2 can scan OpenAPI files for duplicate/overlapping endpoints.")
+st.caption(
+    "Ask questions about API docs in the `data/` folder (Markdown/TXT/OpenAPI YAML/JSON). "
+    "Tab 2 can scan OpenAPI files for duplicate/overlapping endpoints."
+)
 
 DOC_DIR = Path("data")
 DOC_DIR.mkdir(exist_ok=True)
 
-# =========================
+# -----------------------------
 # Model selection (OpenAI or Azure OpenAI)
-# =========================
+# -----------------------------
 USE_AZURE = bool(os.getenv("AZURE_OPENAI_ENDPOINT"))
+
 try:
     from openai import OpenAI, AzureOpenAI
     if USE_AZURE:
@@ -44,8 +75,8 @@ try:
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         )
-        CHAT_MODEL = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")          # ex: your gpt-4o deployment name
-        EMBED_MODEL = os.getenv("AZURE_OPENAI_EMBED_DEPLOYMENT")        # ex: your embeddings deployment
+        CHAT_MODEL = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")          # your GPT-4o deployment
+        EMBED_MODEL = os.getenv("AZURE_OPENAI_EMBED_DEPLOYMENT")        # your embeddings deployment
     else:
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o")
@@ -55,9 +86,9 @@ except Exception:
     CHAT_MODEL = None
     EMBED_MODEL = None
 
-# =========================
+# -----------------------------
 # Helpers
-# =========================
+# -----------------------------
 def _ensure_models():
     if not client or not CHAT_MODEL or not EMBED_MODEL:
         raise RuntimeError(
@@ -67,7 +98,7 @@ def _ensure_models():
             "        AZURE_OPENAI_CHAT_DEPLOYMENT, AZURE_OPENAI_EMBED_DEPLOYMENT"
         )
 
-def chunk_text(txt: str, max_chars: int = 1200) -> List[str]:
+def chunk_text(txt: str, max_chars: int = 1200):
     chunks, cur, count = [], [], 0
     for line in txt.splitlines():
         if count + len(line) + 1 > max_chars and cur:
@@ -80,18 +111,19 @@ def chunk_text(txt: str, max_chars: int = 1200) -> List[str]:
     return [c for c in chunks if c]
 
 @st.cache_data(show_spinner=False)
-def load_repo_docs() -> Tuple[List[str], List[str]]:
-    """Load .md/.txt + OpenAPI .yaml/.json under data/ into chunks and source labels."""
+def load_repo_docs():
+    """Load .md/.txt + OpenAPI .yaml/.json under data/ into text chunks with source labels."""
     texts, sources = [], []
     for p in glob.glob(str(DOC_DIR / "**/*"), recursive=True):
-        if os.path.isdir(p): 
+        if os.path.isdir(p):
             continue
         ext = Path(p).suffix.lower()
         try:
             if ext in (".md", ".txt"):
                 raw = Path(p).read_text(encoding="utf-8", errors="ignore")
                 for ch in chunk_text(raw):
-                    texts.append(ch); sources.append(p)
+                    texts.append(ch)
+                    sources.append(p)
             elif ext in (".yaml", ".yml", ".json"):
                 raw = Path(p).read_text(encoding="utf-8", errors="ignore")
                 spec = yaml.safe_load(raw) if ext in (".yaml", ".yml") else json.loads(raw)
@@ -105,17 +137,18 @@ def load_repo_docs() -> Tuple[List[str], List[str]]:
                         operation_id = op.get("operationId") or ""
                         text = f"{base}\n[{method.upper()}] {path}\nsummary: {summary}\noperationId: {operation_id}\n{desc}"
                         for ch in chunk_text(text, 900):
-                            texts.append(ch); sources.append(f"{p} {method.upper()} {path}")
+                            texts.append(ch)
+                            sources.append(f"{p} {method.upper()} {path}")
         except Exception:
             continue
     return texts, sources
 
-def embed_texts(texts: List[str]) -> np.ndarray:
+def embed_texts(texts):
     _ensure_models()
     resp = client.embeddings.create(model=EMBED_MODEL, input=texts)
     return np.array([d.embedding for d in resp.data], dtype=np.float32)
 
-def cosine_sim(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+def cosine_sim(a, b):
     a = a / (np.linalg.norm(a, axis=1, keepdims=True) + 1e-9)
     b = b / (np.linalg.norm(b, axis=1, keepdims=True) + 1e-9)
     return a @ b.T
@@ -132,11 +165,13 @@ def answer_with_context(question: str, k: int = 5):
     texts, sources, embs = build_index()
     if len(texts) == 0:
         return "No docs found in `data/`. Add .md/.txt/.yaml/.json files first.", []
+
     q_emb = embed_texts([question])
     sims = cosine_sim(q_emb, embs)[0]
     idx = np.argsort(-sims)[:k]
     context_blocks = [texts[i] for i in idx]
     context_srcs = [sources[i] for i in idx]
+
     prompt = f"""You are a helpful assistant answering questions about API documentation.
 Cite the most relevant file paths and endpoints from the provided context.
 
@@ -157,9 +192,10 @@ Answer clearly, then list the sources you used."""
     return answer, context_srcs
 
 def load_openapi_ops():
+    """Flatten OpenAPI operations across all specs under data/."""
     ops = []
     for p in glob.glob(str(DOC_DIR / "**/*"), recursive=True):
-        if os.path.isdir(p): 
+        if os.path.isdir(p):
             continue
         ext = Path(p).suffix.lower()
         if ext not in (".yaml", ".yml", ".json"):
@@ -170,14 +206,14 @@ def load_openapi_ops():
             title = (spec.get("info") or {}).get("title") or Path(p).stem
             for path, item in (spec.get("paths") or {}).items():
                 for method, op in (item or {}).items():
-                    if not isinstance(op, dict): 
+                    if not isinstance(op, dict):
                         continue
                     ops.append({
                         "api_file": str(p),
                         "api_title": title,
                         "method": method.upper(),
                         "path": path,
-                        "operationId": op.get("operationId",""),
+                        "operationId": op.get("operationId", ""),
                         "summary": (op.get("summary") or "").strip(),
                         "desc": (op.get("description") or "").strip(),
                     })
@@ -206,7 +242,7 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
         order = np.argsort(-sims[i])
         count = 0
         for j in order:
-            if j == i: 
+            if j == i:
                 continue
             if sims[i, j] >= threshold:
                 rows.append((ops[i], ops[j], float(sims[i, j])))
@@ -215,12 +251,12 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
                     break
     return rows
 
-# =========================
+# -----------------------------
 # UI (two tabs)
-# =========================
+# -----------------------------
 tab1, tab2 = st.tabs(["💬 Chat with API Docs", "🧭 Duplicate Endpoint Checker"])
 
-# ---- Tab 1: Chat (with fixed bottom input) ----
+# ---- Tab 1: Chat UI ----
 with tab1:
     texts, sources = load_repo_docs()
     if not texts:
@@ -231,58 +267,18 @@ with tab1:
     if "messages" not in st.session_state:
         st.session_state["messages"] = [("assistant", "Hi! Ask me anything about the API docs in the `data/` folder.")]
 
-    # Display conversation
+    # display history
     for role, msg in st.session_state["messages"]:
         with st.chat_message(role):
             st.markdown(msg)
 
-    # --- Fixed bottom input bar (replaces st.chat_input) ---
-    import uuid
-    with st.form(key=f"fixed_input_{uuid.uuid4()}"):
-        st.markdown("""
-        <style>
-          .fixed-input {
-            position: fixed; left: 0; right: 0; bottom: 0;
-            padding: 12px 16px; background: rgba(255,255,255,0.95);
-            border-top: 1px solid #e6e6e6; backdrop-filter: blur(6px);
-            z-index: 9999;
-          }
-          .fixed-input .row { 
-            display: flex; gap: 8px; align-items: center; 
-            max-width: 1100px; margin: 0 auto;
-          }
-          .fixed-input input { height: 44px; border-radius: 10px; }
-          /* Ensure page content isn't covered by the fixed bar */
-          .block-container { padding-bottom: 96px; }
-        </style>
-        <div class="fixed-input">
-          <div class="row">
-            <div style="flex:1">
-        """, unsafe_allow_html=True)
-
-        user_q = st.text_input("Type your question…", key=f"q_{uuid.uuid4()}",
-                               label_visibility="collapsed", placeholder="Type your question…")
-
-        st.markdown("""
-            </div>
-            <div>
-        """, unsafe_allow_html=True)
-
-        sent = st.form_submit_button("Send")
-
-        st.markdown("""
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    if sent and user_q.strip():
-        # add user message
+    # sticky chat input at screen bottom (CSS above handles stickiness)
+    user_q = st.chat_input("Type your question…")
+    if user_q:
         st.session_state["messages"].append(("user", user_q))
         with st.chat_message("user"):
             st.markdown(user_q)
 
-        # assistant reply
         with st.chat_message("assistant"):
             with st.spinner("Thinking…"):
                 try:
@@ -315,8 +311,7 @@ with tab2:
         else:
             for a, b, s in rows[:200]:
                 st.markdown(
-                    f"**{a['method']} {a['path']}**  ↔  **{b['method']} {b['path']}**"
-                    f"  ·  similarity: `{s:.2f}`"
+                    f"**{a['method']} {a['path']}**  ↔  **{b['method']} {b['path']}**  ·  similarity: `{s:.2f}`"
                 )
                 st.caption(f"{a['api_title']} ({a['api_file']})  ↔  {b['api_title']} ({b['api_file']})")
                 if a.get("summary") or b.get("summary"):
