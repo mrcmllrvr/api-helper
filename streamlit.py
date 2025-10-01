@@ -4,6 +4,7 @@ import glob
 import json
 from pathlib import Path
 
+from collections import defaultdict
 import numpy as np
 import streamlit as st
 import yaml
@@ -250,19 +251,40 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
     rows = []
     if len(ops) < 2:
         return rows
+
+    # cosine similarity matrix
     sims = embs @ embs.T
     n = len(ops)
+
+    seen_pairs = set()                 # to avoid mirrored duplicates
+    per_endpoint_count = defaultdict(int)
+
     for i in range(n):
+        # order candidates by similarity (desc)
         order = np.argsort(-sims[i])
-        count = 0
+
         for j in order:
             if j == i:
                 continue
-            if sims[i, j] >= threshold:
-                rows.append((ops[i], ops[j], float(sims[i, j])))
-                count += 1
-                if count >= top_k:
-                    break
+            sim = float(sims[i, j])
+
+            # since order is descending, we can break once we drop below threshold
+            if sim < threshold:
+                break
+
+            # make pair order-insensitive (i<j)
+            pair_key = (i, j) if i < j else (j, i)
+            if pair_key in seen_pairs:
+                continue
+
+            # respect max matches per LEFT endpoint (i)
+            if per_endpoint_count[i] >= top_k:
+                break
+
+            rows.append((ops[i], ops[j], sim))
+            seen_pairs.add(pair_key)
+            per_endpoint_count[i] += 1
+
     return rows
 
 # -----------------------------
@@ -332,4 +354,5 @@ with tab2:
                     st.write(f"- {a['summary'] or '(no summary)'}")
                     st.write(f"- {b['summary'] or '(no summary)'}")
                 st.divider()
+
 
