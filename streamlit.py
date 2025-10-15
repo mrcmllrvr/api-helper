@@ -281,30 +281,42 @@ with st.sidebar:
         st.session_state["messages"].append(("assistant", answer))
 
 # Make the sidebar chat input stick to bottom and match sidebar width
+# Make the chat input stick to bottom + full sidebar width
 st.markdown(
     """
     <style>
-      /* Make the sidebar a vertical flex container that fills its height */
-      [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
+      /* Position sidebar for reference */
+      [data-testid="stSidebar"] {
+        position: relative;
       }
-
-      /* Push the chat input to the bottom within the flex column */
+      
+      /* Fix chat input to bottom of sidebar only */
       [data-testid="stSidebar"] [data-testid="stChatInput"] {
-        margin-top: auto;     /* takes remaining space, moves it to the bottom */
-        width: 100%;          /* respect sidebar width */
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: auto !important;
+        width: var(--sidebar-width, 21rem) !important;
+        max-width: 21rem !important;
+        background-color: var(--background-color);
+        padding: 0.75rem 1rem;
+        border-top: 1px solid rgba(250, 250, 250, 0.2);
+        z-index: 999;
       }
-
-      /* Add a little breathing room above the input */
+      
+      /* Make input field span full sidebar width */
       [data-testid="stSidebar"] [data-testid="stChatInput"] > div {
-        padding-top: 0.5rem;
+        width: 100% !important;
       }
-
-      /* Optional: ensure scrollable history isn’t obscured by the input */
-      [data-testid="stSidebar"] section {
-        padding-bottom: 0.5rem;
+      
+      /* Add bottom padding to sidebar content so messages don't hide behind input */
+      [data-testid="stSidebar"] > div:first-child {
+        padding-bottom: 80px !important;
+      }
+      
+      /* Ensure sidebar content is scrollable */
+      [data-testid="stSidebar"] {
+        overflow-y: auto;
       }
     </style>
     """,
@@ -429,6 +441,7 @@ with col2:
                         + "</div>"
                     )
                     st.markdown(scrollable_html, unsafe_allow_html=True)
+
 
 
 
