@@ -2,11 +2,12 @@ import os
 import glob
 import json
 from pathlib import Path
+from typing import Dict, List, Tuple
+from collections import defaultdict
+
 import numpy as np
 import streamlit as st
 import yaml
-from collections import defaultdict
-from typing import Dict, List, Tuple
 
 # =============================
 # Page setup
@@ -239,10 +240,9 @@ def parse_openapi_for_view(file_path: Path) -> Tuple[str, Dict[str, List[Dict]]]
                     for t in tags:
                         groups[t].append(op_row)
                 else:
-                    # group by first path segment: /v1/embed -> v1
                     seg = path.strip("/").split("/", 1)[0] or "root"
                     groups[seg].append(op_row)
-        # sort ops in each group
+
         for k in list(groups.keys()):
             groups[k].sort(key=lambda r: (r["path"], r["method"]))
         return (title, dict(sorted(groups.items(), key=lambda kv: kv[0].lower())))
@@ -262,7 +262,7 @@ with st.sidebar:
         with st.chat_message(role):
             st.markdown(msg)
 
-    user_q = st.chat_input("Type your question…")  # rendered inside sidebar
+    user_q = st.chat_input("Type your question…")
     if user_q:
         st.session_state["messages"].append(("user", user_q))
         with st.chat_message("user"):
@@ -284,13 +284,11 @@ with st.sidebar:
 st.markdown(
     """
     <style>
-      /* Keep the input within sidebar width */
       [data-testid="stSidebar"] [data-testid="stChatInput"] {
-        position: sticky;   /* respects sidebar width */
+        position: sticky;
         bottom: 0.75rem;
         width: 100%;
       }
-      /* Add padding so history isn't hidden behind sticky input */
       [data-testid="stSidebar"] section { padding-bottom: 5rem; }
     </style>
     """,
@@ -305,7 +303,7 @@ col1, col2 = st.columns(2, gap="large")
 # Left: API Documentation Viewer (nested expanders)
 with col1:
     st.header("API Documentation Viewer")
-    st.markdown("Open a file to browse its endpoints. Use the **Show raw file** toggle for full source if needed.")
+    st.markdown("Open a file to browse its endpoints. Toggle **Show raw file** to view the full spec.")
 
     files = sorted([p for p in DOC_DIR.glob("*") if p.is_file()])
     if not files:
@@ -323,7 +321,6 @@ with col1:
                 else:
                     st.caption("No OpenAPI structure detected. Showing raw content below.")
 
-                # raw content toggle
                 show_raw = st.checkbox(f"Show raw file: {f.name}", key=f"raw_{f.name}")
                 if show_raw:
                     try:
@@ -346,18 +343,66 @@ with col2:
     if st.button("Scan for duplicates", use_container_width=True):
         with st.spinner("Scanning OpenAPI specs…"):
             try:
-                rows = find_duplicates(threshold=0.90, top_k=k)
+                pairs = find_duplicates(threshold=0.90, top_k=k)  # fixed threshold (hidden)
             except Exception as e:
-                rows = []
+                pairs = []
                 st.error(f"Embedding/scan failed: {e}")
 
-        if not rows:
+        if not pairs:
             st.success("✅ No potential duplicates found.")
         else:
-            st.info(f"Found {len(rows)} potential duplicate pairs.")
-            for a, b, s in rows[:200]:
-                with st.expander(f"{a['method']} {a['path']} ↔ {b['method']} {b['path']}  ·  similarity: {s:.2f}", expanded=False):
-                    st.markdown(f"**{a['api_title']}** ({a['api_file']})  ↔  **{b['api_title']}** ({b['api_file']})")
-                    if a.get('summary') or b.get('summary'):
-                        st.write(f"- {a['summary'] or '(no summary)'}")
-                        st.write(f"- {b['summary'] or '(no summary)'}")
+            # Group by anchor endpoint (the 'a' side returned by find_duplicates)
+            groups: Dict[str, Dict] = {}
+            for a, b, sim in pairs:
+                key = f"{a['method']} {a['path']}|{a['api_file']}"
+                if key not in groups:
+                    groups[key] = {
+                        "anchor": a,
+                        "members": []
+                    }
+                groups[key]["members"].append((b, sim))
+
+            st.info(f"Found {len(groups)} groups of potential duplicate endpoints.")
+
+            # Render each group with a side-by-side table (columns: Summary | Description | Operation ID; rows: endpoints)
+            for gkey, g in groups.items():
+                a = g["anchor"]
+                members = sorted(g["members"], key=lambda x: -x[1])  # sort by similarity desc
+
+                title = f"{a['method']} {a['path']}  ·  {a['api_title']} ({a['api_file']})"
+                with st.expander(title, expanded=False):
+
+                    def row_html(op, label_extra=""):
+                        # Summary cell includes the endpoint label; the other two columns are description and op id
+                        summary = op.get("summary") or "(no summary)"
+                        desc = op.get("desc") or "(no description)"
+                        opid = op.get("operationId") or "(none)"
+                        endpoint = f"<b>{op['method']} {op['path']}</b>"
+                        if label_extra:
+                            endpoint += f" <span style='opacity:.65'>({label_extra})</span>"
+                        summary_cell = f"{endpoint}<br/>{summary}"
+                        return f"<tr><td>{summary_cell}</td><td>{desc}</td><td>{opid}</td></tr>"
+
+                    # Build table: columns are Summary | Description | Operation ID
+                    table_html = [
+                        "<table style='width:100%; border-collapse:collapse;'>",
+                        "<thead>",
+                        "<tr>",
+                        "<th style='text-align:left; border-bottom:1px solid #ddd;'>Summary</th>",
+                        "<th style='text-align:left; border-bottom:1px solid #ddd;'>Description</th>",
+                        "<th style='text-align:left; border-bottom:1px solid #ddd;'>Operation ID</th>",
+                        "</tr>",
+                        "</thead>",
+                        "<tbody>",
+                    ]
+
+                    # Anchor row
+                    table_html.append(row_html(a, "anchor"))
+
+                    # Member rows
+                    for b, sim in members:
+                        label = f"match · similarity {sim:.2f} · {b['api_title']}"
+                        table_html.append(row_html(b, label))
+
+                    table_html.extend(["</tbody>", "</table>"])
+                    st.markdown("\n".join(table_html), unsafe_allow_html=True)
