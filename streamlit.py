@@ -284,31 +284,33 @@ with st.sidebar:
 st.markdown(
     """
     <style>
-      /* Ensure the chat input sticks to the absolute bottom of the sidebar */
+      /* Make the sidebar a vertical flex container that fills its height */
+      [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
+      /* Push the chat input to the bottom within the flex column */
       [data-testid="stSidebar"] [data-testid="stChatInput"] {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: inherit;
-        padding: 0.5rem 1rem;
-        background-color: var(--background-color);
-        box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
-        z-index: 9999;
+        margin-top: auto;     /* takes remaining space, moves it to the bottom */
+        width: 100%;          /* respect sidebar width */
       }
 
-      /* Add extra bottom space so messages don't hide behind the fixed input */
-      [data-testid="stSidebar"] .stChatMessage {
-        margin-bottom: 3rem !important;
+      /* Add a little breathing room above the input */
+      [data-testid="stSidebar"] [data-testid="stChatInput"] > div {
+        padding-top: 0.5rem;
       }
 
-      /* Prevent sidebar scroll bar overlap */
+      /* Optional: ensure scrollable history isn’t obscured by the input */
       [data-testid="stSidebar"] section {
-        padding-bottom: 6rem !important;
+        padding-bottom: 0.5rem;
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 
 # =============================
@@ -427,6 +429,7 @@ with col2:
                         + "</div>"
                     )
                     st.markdown(scrollable_html, unsafe_allow_html=True)
+
 
 
 
