@@ -405,6 +405,12 @@ with col2:
                         table_html.append(row_html(b, label))
 
                     table_html.extend(["</tbody>", "</table>"])
-                    st.markdown("\n".join(table_html), unsafe_allow_html=True)
+                    scrollable_html = (
+                        "<div style='overflow-x:auto; max-width:100%; padding-bottom:8px;'>"
+                        + "\n".join(table_html)
+                        + "</div>"
+                    )
+                    st.markdown(scrollable_html, unsafe_allow_html=True)
+
 
 
