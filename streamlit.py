@@ -5,26 +5,29 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 import yaml
-import re
 from collections import defaultdict
 
 # -----------------------------
 # Page setup
 # -----------------------------
 st.set_page_config(
-    page_title="API Docs Chatbot (POC2)",
-    page_icon="📚",
+    page_title="API Lens",
+    page_icon="🔎",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-st.title("API Docs Chatbot (POC2)")
-st.caption(
-    "This app helps you explore an internal inventory of API documentation and avoid duplicate work.\n"
-    "• Use the **API Documentation Viewer** to browse the raw docs.\n"
-    "• Use the **Duplicate Endpoint Checker** to find overlapping endpoints across OpenAPI specs.\n"
-    "• Ask questions anytime in the **Chat with API Docs** sidebar."
+st.title("🔎 API Lens")
+st.markdown(
+    """
+This app helps you explore an internal inventory of API documentation and avoid duplicate work.
+
+- **API Documentation Viewer**: browse the raw API docs in the `data/` folder.
+- **Duplicate Endpoint Checker**: find overlapping endpoints across OpenAPI specs.
+- **Chat with API Docs**: ask questions anytime from the sidebar.
+"""
 )
+st.divider()
 
 DOC_DIR = Path("data")
 DOC_DIR.mkdir(exist_ok=True)
@@ -150,7 +153,7 @@ Context:
     return answer, context_srcs
 
 # -----------------------------
-# Duplicate checker logic (same as before)
+# Duplicate checker logic (same)
 # -----------------------------
 def load_openapi_ops():
     ops = []
@@ -219,10 +222,10 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
     return rows
 
 # -----------------------------
-# Sidebar Chat (same behavior), input glued to bottom
+# Sidebar Chat (same behavior), input glued to bottom and fits sidebar width
 # -----------------------------
 with st.sidebar:
-    st.subheader("💬 Chat with API Docs")
+    st.subheader("Chat with API Docs")
 
     if "messages" not in st.session_state:
         st.session_state["messages"] = [("assistant", "Hi! Ask me anything about the API docs.")]
@@ -232,7 +235,7 @@ with st.sidebar:
         with st.chat_message(role):
             st.markdown(msg)
 
-    # sticky input at bottom of sidebar
+    # sticky input at bottom of sidebar spanning sidebar width
     user_q = st.chat_input("Type your question…")
     if user_q:
         st.session_state["messages"].append(("user", user_q))
@@ -246,19 +249,23 @@ with st.sidebar:
                     answer, srcs = f"⚠️ {e}", []
             st.markdown(answer)
             if srcs:
-                st.caption("Sources I looked at:")
+                st.markdown("**Sources I looked at:**")
                 for s in srcs:
                     st.code(s, language="text")
         st.session_state["messages"].append(("assistant", answer))
 
-# glue chat input to bottom of sidebar via CSS
+# Make the chat input stick to bottom + full sidebar width
 st.markdown(
     """
     <style>
       [data-testid="stSidebar"] [data-testid="stChatInput"] {
-        position: fixed; bottom: 0.75rem; left: 0.75rem; right: 0.75rem;
+        position: fixed; 
+        bottom: 0.75rem; 
+        left: 0.75rem; 
+        right: 0.75rem; 
+        width: auto; /* span sidebar width */
       }
-      /* add bottom padding so messages don't get hidden behind the fixed input */
+      /* Add bottom padding so messages don't get hidden behind fixed input */
       [data-testid="stSidebar"] section { padding-bottom: 5rem; }
     </style>
     """,
@@ -270,38 +277,10 @@ st.markdown(
 # -----------------------------
 col1, col2 = st.columns(2, gap="large")
 
-# --- Helper for highlighting + auto-scroll to first match
-def highlight_with_scroll(full_text: str, term: str, wrap_id: str):
-    if not term.strip():
-        return f"<div id='{wrap_id}' style='max-height:480px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>{full_text}</div>"
-
-    pattern = re.compile(re.escape(term), re.IGNORECASE)
-    count = 0
-
-    def _repl(m):
-        nonlocal count
-        count += 1
-        if count == 1:
-            return f"<mark id='{wrap_id}_first'>{m.group(0)}</mark>"
-        return f"<mark>{m.group(0)}</mark>"
-
-    highlighted = pattern.sub(_repl, full_text)
-    html = (
-        f"<div id='{wrap_id}' style='max-height:480px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>"
-        f"{highlighted}</div>"
-        f"<script>"
-        f"const box = document.getElementById('{wrap_id}');"
-        f"const hit = document.getElementById('{wrap_id}_first');"
-        f"if (box && hit) {{ hit.scrollIntoView({{behavior:'smooth', block:'center'}}); }}"
-        f"</script>"
-    )
-    return html
-
 # Left: API Documentation Viewer
 with col1:
     st.header("API Documentation Viewer")
-    st.caption("Open a file and use the search box to highlight matches (like Ctrl+F). Full content stays visible and scrollable.")
-
+    st.markdown("Open a file to view its full content. The viewer is scrollable for large docs.")
     files = sorted([p for p in DOC_DIR.glob("*") if p.is_file()])
     if not files:
         st.info("No API docs found in `data/`.")
@@ -314,21 +293,23 @@ with col1:
                 continue
 
             with st.expander(f"{f.name}", expanded=False):
-                term = st.text_input(f"🔍 Search in {f.name}", "", key=f"search_{f.name}")
-                html = highlight_with_scroll(content, term, wrap_id=f"wrap_{f.name.replace('.', '_')}")
-                st.markdown(html, unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='max-height:480px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>"
+                    f"{content}</div>",
+                    unsafe_allow_html=True,
+                )
 
 # Right: Duplicate Endpoint Checker
 with col2:
     st.header("Duplicate Endpoint Checker")
-    st.caption("Scan all OpenAPI files in `data/` for similar/overlapping endpoints. The threshold is fixed internally at 0.90.")
+    st.markdown("Scan all OpenAPI files in `data/` for similar or overlapping endpoints.")
 
     k = st.slider("Max matches per endpoint", 1, 10, 3, 1)
 
     if st.button("Scan for duplicates", use_container_width=True):
         with st.spinner("Scanning OpenAPI specs…"):
             try:
-                rows = find_duplicates(threshold=0.90, top_k=k)  # fixed threshold (not shown)
+                rows = find_duplicates(threshold=0.90, top_k=k)  # fixed threshold (hidden)
             except Exception as e:
                 rows = []
                 st.error(f"Embedding/scan failed: {e}")
@@ -339,7 +320,7 @@ with col2:
             st.info(f"Found {len(rows)} potential duplicate pairs.")
             for a, b, s in rows[:200]:
                 with st.expander(f"{a['method']} {a['path']} ↔ {b['method']} {b['path']}  ·  similarity: {s:.2f}", expanded=False):
-                    st.caption(f"{a['api_title']} ({a['api_file']})  ↔  {b['api_title']} ({b['api_file']})")
+                    st.markdown(f"**{a['api_title']}** ({a['api_file']})  ↔  **{b['api_title']}** ({b['api_file']})")
                     if a.get('summary') or b.get('summary'):
                         st.write(f"- {a['summary'] or '(no summary)'}")
                         st.write(f"- {b['summary'] or '(no summary)'}")
