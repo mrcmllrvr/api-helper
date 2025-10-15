@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 import yaml
+import re
 from collections import defaultdict
 
 # -----------------------------
@@ -19,8 +20,10 @@ st.set_page_config(
 
 st.title("API Docs Chatbot (POC2)")
 st.caption(
-    "Ask questions about API docs in the `data/` folder. "
-    "Use the left section to view API documentation and check for duplicate endpoints."
+    "This app helps you explore an internal inventory of API documentation and avoid duplicate work.\n"
+    "• Use the **API Documentation Viewer** to browse the raw docs.\n"
+    "• Use the **Duplicate Endpoint Checker** to find overlapping endpoints across OpenAPI specs.\n"
+    "• Ask questions anytime in the **Chat with API Docs** sidebar."
 )
 
 DOC_DIR = Path("data")
@@ -73,7 +76,7 @@ def load_repo_docs():
     """Load .md/.txt + OpenAPI .yaml/.json under data/ into text chunks."""
     texts, sources = [], []
     for p in glob.glob(str(DOC_DIR / "**/*"), recursive=True):
-        if os.path.isdir(p):
+        if os.path.isdir(p):  # skip dirs
             continue
         ext = Path(p).suffix.lower()
         try:
@@ -147,7 +150,7 @@ Context:
     return answer, context_srcs
 
 # -----------------------------
-# Duplicate checker logic
+# Duplicate checker logic (same as before)
 # -----------------------------
 def load_openapi_ops():
     ops = []
@@ -216,7 +219,7 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
     return rows
 
 # -----------------------------
-# Sidebar Chat
+# Sidebar Chat (same behavior), input glued to bottom
 # -----------------------------
 with st.sidebar:
     st.subheader("💬 Chat with API Docs")
@@ -224,10 +227,12 @@ with st.sidebar:
     if "messages" not in st.session_state:
         st.session_state["messages"] = [("assistant", "Hi! Ask me anything about the API docs.")]
 
+    # chat history
     for role, msg in st.session_state["messages"]:
         with st.chat_message(role):
             st.markdown(msg)
 
+    # sticky input at bottom of sidebar
     user_q = st.chat_input("Type your question…")
     if user_q:
         st.session_state["messages"].append(("user", user_q))
@@ -246,14 +251,57 @@ with st.sidebar:
                     st.code(s, language="text")
         st.session_state["messages"].append(("assistant", answer))
 
+# glue chat input to bottom of sidebar via CSS
+st.markdown(
+    """
+    <style>
+      [data-testid="stSidebar"] [data-testid="stChatInput"] {
+        position: fixed; bottom: 0.75rem; left: 0.75rem; right: 0.75rem;
+      }
+      /* add bottom padding so messages don't get hidden behind the fixed input */
+      [data-testid="stSidebar"] section { padding-bottom: 5rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # -----------------------------
-# Main: Side-by-side layout
+# Main: side-by-side layout
 # -----------------------------
 col1, col2 = st.columns(2, gap="large")
+
+# --- Helper for highlighting + auto-scroll to first match
+def highlight_with_scroll(full_text: str, term: str, wrap_id: str):
+    if not term.strip():
+        return f"<div id='{wrap_id}' style='max-height:480px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>{full_text}</div>"
+
+    pattern = re.compile(re.escape(term), re.IGNORECASE)
+    count = 0
+
+    def _repl(m):
+        nonlocal count
+        count += 1
+        if count == 1:
+            return f"<mark id='{wrap_id}_first'>{m.group(0)}</mark>"
+        return f"<mark>{m.group(0)}</mark>"
+
+    highlighted = pattern.sub(_repl, full_text)
+    html = (
+        f"<div id='{wrap_id}' style='max-height:480px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>"
+        f"{highlighted}</div>"
+        f"<script>"
+        f"const box = document.getElementById('{wrap_id}');"
+        f"const hit = document.getElementById('{wrap_id}_first');"
+        f"if (box && hit) {{ hit.scrollIntoView({{behavior:'smooth', block:'center'}}); }}"
+        f"</script>"
+    )
+    return html
 
 # Left: API Documentation Viewer
 with col1:
     st.header("API Documentation Viewer")
+    st.caption("Open a file and use the search box to highlight matches (like Ctrl+F). Full content stays visible and scrollable.")
+
     files = sorted([p for p in DOC_DIR.glob("*") if p.is_file()])
     if not files:
         st.info("No API docs found in `data/`.")
@@ -266,32 +314,21 @@ with col1:
                 continue
 
             with st.expander(f"{f.name}", expanded=False):
-                search_term = st.text_input(f"🔍 Search in {f.name}", "", key=f"search_{f.name}")
-                highlighted_content = content
-                if search_term.strip():
-                    for variant in (search_term, search_term.lower(), search_term.upper()):
-                        highlighted_content = highlighted_content.replace(
-                            variant,
-                            f"<mark>{variant}</mark>"
-                        )
-
-                st.markdown(
-                    f"<div style='max-height:480px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>"
-                    f"{highlighted_content}</div>",
-                    unsafe_allow_html=True,
-                )
+                term = st.text_input(f"🔍 Search in {f.name}", "", key=f"search_{f.name}")
+                html = highlight_with_scroll(content, term, wrap_id=f"wrap_{f.name.replace('.', '_')}")
+                st.markdown(html, unsafe_allow_html=True)
 
 # Right: Duplicate Endpoint Checker
 with col2:
     st.header("Duplicate Endpoint Checker")
-    st.caption("Similarity threshold is fixed at 0.90")
+    st.caption("Scan all OpenAPI files in `data/` for similar/overlapping endpoints. The threshold is fixed internally at 0.90.")
 
     k = st.slider("Max matches per endpoint", 1, 10, 3, 1)
 
     if st.button("Scan for duplicates", use_container_width=True):
         with st.spinner("Scanning OpenAPI specs…"):
             try:
-                rows = find_duplicates(threshold=0.90, top_k=k)
+                rows = find_duplicates(threshold=0.90, top_k=k)  # fixed threshold (not shown)
             except Exception as e:
                 rows = []
                 st.error(f"Embedding/scan failed: {e}")
