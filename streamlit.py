@@ -16,21 +16,12 @@ st.sidebar.title("📂 API Documentation Files")
 DOC_DIR = Path("data")
 api_files = sorted([p for p in glob.glob(str(DOC_DIR / "*")) if os.path.isfile(p)])
 
+selected_file = None
 if not api_files:
     st.sidebar.info("No API docs found in `data/` folder.")
 else:
-    st.sidebar.markdown("### Available Docs")
-    for file in api_files:
-        with open(file, "r", encoding="utf-8") as f:
-            content = f.read()
-        st.sidebar.download_button(
-            label=f"📄 {Path(file).name}",
-            data=content,
-            file_name=Path(file).name,
-            mime="text/plain",
-            key=file
-        )
-
+    file_names = [Path(f).name for f in api_files]
+    selected_file = st.sidebar.radio("Select an API doc to preview:", file_names)
 
 # ---------------------------
 # Setup
@@ -147,7 +138,7 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
 # ---------------------------
 # Tabs
 # ---------------------------
-tab1, tab2 = st.tabs(["💬 Chat with API Docs", "🧭 Duplicate Endpoint Checker"])
+tab1, tab2, tab3 = st.tabs(["💬 Chat with API Docs", "🧭 Duplicate Endpoint Checker", "📘 View API Doc"])
 
 # ---------------------------
 # Tab 1: Chatbot
@@ -199,6 +190,21 @@ with tab2:
                 st.markdown("---")
 
 # ---------------------------
+# Tab 3: File Preview
+# ---------------------------
+with tab3:
+    if selected_file:
+        file_path = DOC_DIR / selected_file
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            st.subheader(f"📘 {selected_file}")
+            st.code(content, language="yaml")
+        except Exception as e:
+            st.error(f"Error reading {selected_file}: {e}")
+    else:
+        st.info("Select a file from the sidebar to view its content.")
+
+# ---------------------------
 # CSS: sticky chat input
 # ---------------------------
 st.markdown(
@@ -210,4 +216,3 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
