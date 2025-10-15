@@ -280,31 +280,42 @@ with st.sidebar:
                     st.code(s, language="text")
         st.session_state["messages"].append(("assistant", answer))
 
-# Make the sidebar chat input stick to bottom and match sidebar width
 # Make the chat input stick to bottom + full sidebar width
 st.markdown(
     """
     <style>
-      /* Position sidebar for reference */
-      [data-testid="stSidebar"] {
-        position: relative;
-      }
-      
-      /* Fix chat input to bottom of sidebar only */
+      /* Fix chat input to bottom of sidebar with dynamic width */
       [data-testid="stSidebar"] [data-testid="stChatInput"] {
         position: fixed !important;
         bottom: 0 !important;
         left: 0 !important;
         right: auto !important;
-        width: var(--sidebar-width, 21rem) !important;
-        max-width: 21rem !important;
+        width: calc(var(--sidebar-width, 21rem)) !important;
         background-color: var(--background-color);
         padding: 0.75rem 1rem;
         border-top: 1px solid rgba(250, 250, 250, 0.2);
         z-index: 999;
       }
       
-      /* Make input field span full sidebar width */
+      /* Alternative approach using parent width */
+      [data-testid="stSidebar"] > div:first-child {
+        position: relative;
+      }
+      
+      [data-testid="stSidebar"] [data-testid="stChatInput"] {
+        position: sticky !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        margin-left: -1rem;
+        margin-right: -1rem;
+        padding: 0.75rem 1rem;
+        background-color: var(--background-color);
+        border-top: 1px solid rgba(250, 250, 250, 0.2);
+        z-index: 999;
+      }
+      
+      /* Make input field span full available width */
       [data-testid="stSidebar"] [data-testid="stChatInput"] > div {
         width: 100% !important;
       }
@@ -441,6 +452,7 @@ with col2:
                         + "</div>"
                     )
                     st.markdown(scrollable_html, unsafe_allow_html=True)
+
 
 
 
