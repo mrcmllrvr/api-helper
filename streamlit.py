@@ -15,11 +15,22 @@ st.set_page_config(page_title="API Helper", layout="wide")
 st.sidebar.title("📂 API Documentation Files")
 DOC_DIR = Path("data")
 api_files = sorted([p for p in glob.glob(str(DOC_DIR / "*")) if os.path.isfile(p)])
+
 if not api_files:
     st.sidebar.info("No API docs found in `data/` folder.")
 else:
+    st.sidebar.markdown("### Available Docs")
     for file in api_files:
-        st.sidebar.markdown(f"- [{Path(file).name}]({file})")
+        with open(file, "r", encoding="utf-8") as f:
+            content = f.read()
+        st.sidebar.download_button(
+            label=f"📄 {Path(file).name}",
+            data=content,
+            file_name=Path(file).name,
+            mime="text/plain",
+            key=file
+        )
+
 
 # ---------------------------
 # Setup
@@ -199,3 +210,4 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
