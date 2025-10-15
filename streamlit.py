@@ -1,121 +1,114 @@
 import os
 import glob
 from pathlib import Path
-import streamlit as st
 import numpy as np
+import streamlit as st
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
-# ---------------------------
-# Configuration
-# ---------------------------
-st.set_page_config(page_title="API Helper", layout="wide")
+# =========================
+# Page Config
+# =========================
+st.set_page_config(page_title="API Inventory Dashboard", layout="wide")
 
-# ---- Sidebar: List available API docs ----
-st.sidebar.title("📂 API Documentation Files")
 DOC_DIR = Path("data")
-api_files = sorted([p for p in glob.glob(str(DOC_DIR / "*")) if os.path.isfile(p)])
+DOC_DIR.mkdir(exist_ok=True)
 
-selected_file = None
-if not api_files:
-    st.sidebar.info("No API docs found in `data/` folder.")
-else:
-    file_names = [Path(f).name for f in api_files]
-    selected_file = st.sidebar.radio("Select an API doc to preview:", file_names)
-
-# ---------------------------
-# Setup
-# ---------------------------
-st.title("🤖 API Helper")
-st.caption("Chatbot & Duplicate Endpoint Checker powered by GPT-4o")
-
-openai_api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
-if not openai_api_key:
-    st.error("Missing OpenAI API key. Please set it in Streamlit Secrets.")
+# =========================
+# Model setup (OpenAI)
+# =========================
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
+if not OPENAI_API_KEY:
+    st.error("Missing OpenAI API key. Set OPENAI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-client = OpenAI(api_key=openai_api_key)
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-CHAT_MODEL = "gpt-4o-mini"
+client = OpenAI(api_key=OPENAI_API_KEY)
+CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
 
-# ---------------------------
+# Embeddings for search/duplicates
+EMBED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+
+# =========================
 # Helper functions
-# ---------------------------
+# =========================
 def load_docs():
     docs = {}
-    for path in DOC_DIR.glob("*"):
-        if path.suffix.lower() in [".txt", ".md", ".yaml", ".yml", ".json"]:
+    for p in DOC_DIR.glob("*"):
+        if p.suffix.lower() in (".txt", ".md", ".yaml", ".yml", ".json"):
             try:
-                docs[path.name] = path.read_text(encoding="utf-8")
+                docs[p.name] = p.read_text(encoding="utf-8")
             except Exception as e:
-                st.warning(f"Could not read {path.name}: {e}")
+                st.warning(f"Could not read {p.name}: {e}")
     return docs
+
+def chunk(text, size=1000):
+    return [text[i:i+size] for i in range(0, len(text), size)]
 
 @st.cache_resource
 def build_doc_index():
     docs = load_docs()
     texts, meta = [], []
     for fname, content in docs.items():
-        chunks = [content[i:i+1000] for i in range(0, len(content), 1000)]
-        texts.extend(chunks)
-        meta.extend([fname]*len(chunks))
+        parts = chunk(content, 1000)
+        texts.extend(parts)
+        meta.extend([fname]*len(parts))
     if not texts:
         return None, None, None
-    embs = embed_model.encode(texts, normalize_embeddings=True)
+    embs = EMBED_MODEL.encode(texts, normalize_embeddings=True)
     return texts, embs, meta
-
-@st.cache_resource
-def duplicate_index():
-    docs = load_docs()
-    endpoints, texts = [], []
-    for fname, content in docs.items():
-        for line in content.splitlines():
-            if line.strip().lower().startswith(("get ", "post ", "put ", "delete ")):
-                endpoints.append(f"{fname} | {line.strip()}")
-                texts.append(line.strip())
-    if not endpoints:
-        return [], None
-    embs = embed_model.encode(texts, normalize_embeddings=True)
-    return endpoints, embs
 
 def answer_with_context(question: str):
     texts, embs, meta = build_doc_index()
     if texts is None:
         return "No documentation found.", []
 
-    q_emb = embed_model.encode([question], normalize_embeddings=True)
+    q_emb = EMBED_MODEL.encode([question], normalize_embeddings=True)
     sims = np.dot(embs, q_emb.T).squeeze()
     top_idx = np.argsort(-sims)[:5]
     context_blocks = [f"From {meta[i]}:\n{texts[i]}" for i in top_idx]
 
-    SYSTEM_PROMPT = """You are an expert API Documentation Assistant.
-Answer questions using the provided API docs context only.
-Be concise, structured, and cite the filenames you used.
-If the answer isn't in context, say 'I don’t know from the provided docs.'"""
+    SYSTEM_PROMPT = (
+        "You are an expert API Documentation Assistant.\n"
+        "Answer using ONLY the provided context. If not present, say: "
+        "'I don’t know from the provided docs.'\n"
+        "Be concise, structured, and cite the filenames you used."
+    )
 
     resp = client.chat.completions.create(
         model=CHAT_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Question: {question}\n\nContext:\n\n" + "\n\n---\n\n".join(context_blocks)},
+            {"role": "user", "content": f"Question: {question}\n\nContext:\n\n" + '\n\n---\n\n'.join(context_blocks)},
         ],
         temperature=0.2,
     )
-
     answer = resp.choices[0].message.content
     sources = list({meta[i] for i in top_idx})
     return answer, sources
+
+@st.cache_resource
+def duplicate_index():
+    docs = load_docs()
+    endpoints, base_texts = [], []
+    for fname, content in docs.items():
+        for line in content.splitlines():
+            low = line.strip().lower()
+            if low.startswith(("get ", "post ", "put ", "delete ", "patch ")):
+                endpoints.append(f"{fname} | {line.strip()}")
+                base_texts.append(line.strip())
+    if not endpoints:
+        return [], None
+    embs = EMBED_MODEL.encode(base_texts, normalize_embeddings=True)
+    return endpoints, embs
 
 def find_duplicates(threshold: float = 0.90, top_k: int = 3):
     ops, embs = duplicate_index()
     rows = []
     if len(ops) < 2:
         return rows
-
     sims = embs @ embs.T
     n = len(ops)
     seen_pairs = set()
-
     for i in range(n):
         order = np.argsort(-sims[i])
         count = 0
@@ -125,94 +118,115 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
             sim = float(sims[i, j])
             if sim < threshold:
                 break
-            pair_key = tuple(sorted((i, j)))
-            if pair_key in seen_pairs:
+            key = tuple(sorted((i, j)))
+            if key in seen_pairs:
                 continue
             rows.append((ops[i], ops[j], sim))
-            seen_pairs.add(pair_key)
+            seen_pairs.add(key)
             count += 1
             if count >= top_k:
                 break
     return rows
 
-# ---------------------------
-# Tabs
-# ---------------------------
-tab1, tab2, tab3 = st.tabs(["💬 Chat with API Docs", "🧭 Duplicate Endpoint Checker", "📘 View API Doc"])
+def extract_quick_endpoints(text: str, max_show=25):
+    eps = []
+    for line in text.splitlines():
+        s = line.strip()
+        if s.lower().startswith(("get ", "post ", "put ", "delete ", "patch ")):
+            eps.append(s)
+            if len(eps) >= max_show:
+                break
+    return eps
 
-# ---------------------------
-# Tab 1: Chatbot
-# ---------------------------
-with tab1:
-    st.subheader("💬 Chat about API Documentation")
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# =========================
+# Sidebar: Chat (auto-scroll)
+# =========================
+with st.sidebar:
+    st.subheader("💬 Chat with API Docs")
+    if "chat" not in st.session_state:
+        st.session_state.chat = []
 
-    for role, msg in st.session_state.messages:
-        with st.chat_message(role):
-            st.markdown(msg)
+    chat_container = st.container()
 
-    user_q = st.chat_input("Ask something about the APIs…")
-    if user_q:
-        st.session_state.messages.append(("user", user_q))
-        with st.chat_message("user"):
-            st.markdown(user_q)
+    with chat_container:
+        for role, msg in st.session_state.chat[-12:]:
+            role_tag = "👤" if role == "user" else "🤖"
+            st.markdown(f"**{role_tag} {role.capitalize()}:** {msg}")
 
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking…"):
-                answer, srcs = answer_with_context(user_q)
-            st.markdown(answer)
-            if srcs:
-                st.caption("📚 Sources:")
-                for s in srcs:
-                    st.code(s, language="text")
-        st.session_state.messages.append(("assistant", answer))
+    user_q = st.text_area("Type your question…", height=90, key="chat_input")
+    send = st.button("Send", use_container_width=True)
+    if send and user_q.strip():
+        st.session_state.chat.append(("user", user_q.strip()))
+        with st.spinner("Thinking…"):
+            ans, srcs = answer_with_context(user_q.strip())
+        if srcs:
+            ans += "\n\n*Sources:* " + ", ".join(srcs)
+        st.session_state.chat.append(("assistant", ans))
+        st.experimental_rerun()
 
-# ---------------------------
-# Tab 2: Duplicate Checker
-# ---------------------------
-with tab2:
-    thr = 0.90  # Fixed similarity threshold
+    st.markdown(
+        """
+        <script>
+        var chatContainer = window.parent.document.querySelector('[data-testid="stSidebar"] section');
+        if (chatContainer) { chatContainer.scrollTop = chatContainer.scrollHeight; }
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# =========================
+# Main: horizontally divided sections
+# =========================
+col_left, col_right = st.columns(2, gap="large")
+
+# ---- Left: API Documentation Viewer ----
+with col_left:
+    st.header("📘 API Documentation Viewer")
+    files = sorted([p for p in DOC_DIR.glob("*") if p.is_file()])
+    if not files:
+        st.info("No API docs found in `data/`. Add .md/.txt/.yaml/.yml/.json files.")
+    else:
+        for f in files:
+            try:
+                content = f.read_text(encoding="utf-8")
+            except Exception as e:
+                st.warning(f"Could not read {f.name}: {e}")
+                continue
+            with st.expander(f"{f.name}", expanded=False):
+                eps = extract_quick_endpoints(content, max_show=50)
+                if eps:
+                    st.markdown("**Endpoints detected (preview):**")
+                    for e in eps:
+                        st.code(e, language="text")
+                else:
+                    st.caption("No explicit 'METHOD /path' lines detected in preview.")
+                if st.checkbox(f"Show full content of {f.name}", key=f"full_{f.name}"):
+                    lang = (
+                        "yaml" if f.suffix.lower() in (".yaml", ".yml")
+                        else "json" if f.suffix.lower() == ".json"
+                        else "markdown"
+                    )
+                    st.code(content, language=lang)
+
+# ---- Right: Duplicate Endpoint Checker ----
+with col_right:
+    st.header("🧭 Duplicate Endpoint Checker")
+    st.caption("Similarity threshold is fixed at 0.90")
     top_k = st.slider("Max matches per endpoint", 1, 10, 3)
-    if st.button("Scan for Duplicates"):
-        with st.spinner("Scanning..."):
-            results = find_duplicates(threshold=thr, top_k=top_k)
+    if st.button("Scan for Duplicates", use_container_width=True):
+        with st.spinner("Scanning…"):
+            results = find_duplicates(threshold=0.90, top_k=top_k)
         if not results:
             st.success("✅ No potential duplicates found.")
         else:
             st.info(f"Found {len(results)} potential duplicate pairs.")
             for a, b, sim in results:
-                st.markdown(f"**{a.split('|')[1].strip()} ↔ {b.split('|')[1].strip()} · similarity:** `{sim:.2f}`")
-                st.markdown(
-                    f"*{a.split('|')[0]}* ↔ *{b.split('|')[0]}*",
-                    help="These are the API docs containing the endpoints.",
-                )
-                st.markdown("---")
-
-# ---------------------------
-# Tab 3: File Preview
-# ---------------------------
-with tab3:
-    if selected_file:
-        file_path = DOC_DIR / selected_file
-        try:
-            content = file_path.read_text(encoding="utf-8")
-            st.subheader(f"📘 {selected_file}")
-            st.code(content, language="yaml")
-        except Exception as e:
-            st.error(f"Error reading {selected_file}: {e}")
-    else:
-        st.info("Select a file from the sidebar to view its content.")
-
-# ---------------------------
-# CSS: sticky chat input
-# ---------------------------
-st.markdown(
-    """
-    <style>
-    [data-testid="stChatInput"] { position: fixed; bottom: 0; width: 80%; background: white; }
-    footer {visibility: hidden;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+                a_file, a_op = a.split("|", 1)
+                b_file, b_op = b.split("|", 1)
+                with st.expander(f"{a_op.strip()} ↔ {b_op.strip()} · similarity: {sim:.2f}", expanded=False):
+                    st.markdown("**Source files:**")
+                    st.markdown(f"- {a_file.strip()}")
+                    st.markdown(f"- {b_file.strip()}")
+                    st.markdown("**Why they look similar (text compared):**")
+                    st.code(a_op.strip(), language="text")
+                    st.code(b_op.strip(), language="text")
