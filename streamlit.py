@@ -170,12 +170,7 @@ with tab1:
 # Tab 2: Duplicate Checker
 # ---------------------------
 with tab2:
-    st.subheader("🧭 Duplicate Endpoint Checker")
-
-    # Fixed threshold at 0.90
-    thr = 0.90
-    st.caption("🔒 Similarity threshold is fixed at 0.90")
-
+    thr = 0.90  # Fixed similarity threshold
     top_k = st.slider("Max matches per endpoint", 1, 10, 3)
     if st.button("Scan for Duplicates"):
         with st.spinner("Scanning..."):
