@@ -284,33 +284,13 @@ with st.sidebar:
 st.markdown(
     """
     <style>
-      /* Fix chat input to bottom of sidebar with dynamic width */
+      /* Fix chat input to bottom with dynamic sidebar width tracking */
       [data-testid="stSidebar"] [data-testid="stChatInput"] {
         position: fixed !important;
         bottom: 0 !important;
         left: 0 !important;
-        right: auto !important;
-        width: calc(var(--sidebar-width, 21rem)) !important;
         background-color: var(--background-color);
         padding: 0.75rem 1rem;
-        border-top: 1px solid rgba(250, 250, 250, 0.2);
-        z-index: 999;
-      }
-      
-      /* Alternative approach using parent width */
-      [data-testid="stSidebar"] > div:first-child {
-        position: relative;
-      }
-      
-      [data-testid="stSidebar"] [data-testid="stChatInput"] {
-        position: sticky !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        margin-left: -1rem;
-        margin-right: -1rem;
-        padding: 0.75rem 1rem;
-        background-color: var(--background-color);
         border-top: 1px solid rgba(250, 250, 250, 0.2);
         z-index: 999;
       }
@@ -330,10 +310,43 @@ st.markdown(
         overflow-y: auto;
       }
     </style>
+    <script>
+      // Dynamically adjust chat input width to match sidebar
+      function adjustChatInputWidth() {
+        const sidebar = document.querySelector('[data-testid="stSidebar"]');
+        const chatInput = document.querySelector('[data-testid="stSidebar"] [data-testid="stChatInput"]');
+        
+        if (sidebar && chatInput) {
+          const sidebarWidth = sidebar.offsetWidth;
+          chatInput.style.width = sidebarWidth + 'px';
+        }
+      }
+      
+      // Run on load and resize
+      adjustChatInputWidth();
+      window.addEventListener('resize', adjustChatInputWidth);
+      
+      // Use ResizeObserver for sidebar resize detection
+      const sidebar = document.querySelector('[data-testid="stSidebar"]');
+      if (sidebar) {
+        const resizeObserver = new ResizeObserver(adjustChatInputWidth);
+        resizeObserver.observe(sidebar);
+      }
+    </script>
+      
+      /* Add bottom padding to sidebar content so messages don't hide behind input */
+      [data-testid="stSidebar"] > div:first-child {
+        padding-bottom: 80px !important;
+      }
+      
+      /* Ensure sidebar content is scrollable */
+      [data-testid="stSidebar"] {
+        overflow-y: auto;
+      }
+    </style>
     """,
     unsafe_allow_html=True,
 )
-
 
 
 # =============================
@@ -452,6 +465,7 @@ with col2:
                         + "</div>"
                     )
                     st.markdown(scrollable_html, unsafe_allow_html=True)
+
 
 
 
