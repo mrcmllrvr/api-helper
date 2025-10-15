@@ -253,7 +253,7 @@ def parse_openapi_for_view(file_path: Path) -> Tuple[str, Dict[str, List[Dict]]]
 # Sidebar Chat (same logic), input glued to sidebar bottom & width
 # =============================
 with st.sidebar:
-    st.subheader("Chat with API Docs")
+    st.subheader("🗨️Chat with API Docs")
 
     if "messages" not in st.session_state:
         st.session_state["messages"] = [("assistant", "Hi! Ask me anything about the API docs.")]
@@ -406,3 +406,4 @@ with col2:
 
                     table_html.extend(["</tbody>", "</table>"])
                     st.markdown("\n".join(table_html), unsafe_allow_html=True)
+
