@@ -6,10 +6,11 @@ import numpy as np
 import streamlit as st
 import yaml
 from collections import defaultdict
+from typing import Dict, List, Tuple
 
-# -----------------------------
+# =============================
 # Page setup
-# -----------------------------
+# =============================
 st.set_page_config(
     page_title="API Lens",
     page_icon="🔎",
@@ -18,23 +19,15 @@ st.set_page_config(
 )
 
 st.title("🔎 API Lens")
-st.markdown(
-    """
-This app helps you explore an internal inventory of API documentation and avoid duplicate work.
-
-- **API Documentation Viewer**: browse the raw API docs in the `data/` folder.
-- **Duplicate Endpoint Checker**: find overlapping endpoints across OpenAPI specs.
-- **Chat with API Docs**: ask questions anytime from the sidebar.
-"""
-)
+st.markdown("Explore internal API docs, spot duplicate endpoints, and ask questions in the sidebar.")
 st.divider()
 
 DOC_DIR = Path("data")
 DOC_DIR.mkdir(exist_ok=True)
 
-# -----------------------------
+# =============================
 # OpenAI / Azure setup
-# -----------------------------
+# =============================
 USE_AZURE = bool(os.getenv("AZURE_OPENAI_ENDPOINT"))
 try:
     from openai import OpenAI, AzureOpenAI
@@ -55,9 +48,9 @@ except Exception:
     CHAT_MODEL = None
     EMBED_MODEL = None
 
-# -----------------------------
-# Helpers
-# -----------------------------
+# =============================
+# Helper functions
+# =============================
 def _ensure_models():
     if not client or not CHAT_MODEL or not EMBED_MODEL:
         raise RuntimeError("⚠️ Missing model configuration for OpenAI or Azure OpenAI.")
@@ -76,10 +69,10 @@ def chunk_text(txt: str, max_chars: int = 1200):
 
 @st.cache_data(show_spinner=False)
 def load_repo_docs():
-    """Load .md/.txt + OpenAPI .yaml/.json under data/ into text chunks."""
+    """Load .md/.txt + OpenAPI .yaml/.json under data/ into text chunks (for RAG)."""
     texts, sources = [], []
     for p in glob.glob(str(DOC_DIR / "**/*"), recursive=True):
-        if os.path.isdir(p):  # skip dirs
+        if os.path.isdir(p):
             continue
         ext = Path(p).suffix.lower()
         try:
@@ -152,9 +145,7 @@ Context:
     answer = resp.choices[0].message.content
     return answer, context_srcs
 
-# -----------------------------
-# Duplicate checker logic (same)
-# -----------------------------
+# ---------- Duplicate checker logic ----------
 def load_openapi_ops():
     ops = []
     for p in glob.glob(str(DOC_DIR / "**/*"), recursive=True):
@@ -179,6 +170,7 @@ def load_openapi_ops():
                         "operationId": op.get("operationId", ""),
                         "summary": (op.get("summary") or "").strip(),
                         "desc": (op.get("description") or "").strip(),
+                        "tags": op.get("tags") or [],
                     })
         except Exception:
             continue
@@ -221,22 +213,56 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
             per_endpoint_count[i] += 1
     return rows
 
-# -----------------------------
-# Sidebar Chat (same behavior), input glued to bottom and fits sidebar width
-# -----------------------------
+# ---------- Viewer parsing (for nested expanders) ----------
+def parse_openapi_for_view(file_path: Path) -> Tuple[str, Dict[str, List[Dict]]]:
+    """
+    Returns (title, groups) where groups is dict[tag_or_group] -> list of ops.
+    If OpenAPI tags exist, group by tag. Otherwise group by first path segment.
+    """
+    ext = file_path.suffix.lower()
+    if ext not in (".yaml", ".yml", ".json"):
+        return (file_path.name, {})
+    try:
+        raw = file_path.read_text(encoding="utf-8", errors="ignore")
+        spec = yaml.safe_load(raw) if ext in (".yaml", ".yml") else json.loads(raw)
+        title = (spec.get("info") or {}).get("title") or file_path.stem
+        groups: Dict[str, List[Dict]] = defaultdict(list)
+
+        for path, item in (spec.get("paths") or {}).items():
+            for method, op in (item or {}).items():
+                if not isinstance(op, dict):
+                    continue
+                tags = op.get("tags") or []
+                summary = (op.get("summary") or "").strip()
+                op_row = {"method": method.upper(), "path": path, "summary": summary}
+                if tags:
+                    for t in tags:
+                        groups[t].append(op_row)
+                else:
+                    # group by first path segment: /v1/embed -> v1
+                    seg = path.strip("/").split("/", 1)[0] or "root"
+                    groups[seg].append(op_row)
+        # sort ops in each group
+        for k in list(groups.keys()):
+            groups[k].sort(key=lambda r: (r["path"], r["method"]))
+        return (title, dict(sorted(groups.items(), key=lambda kv: kv[0].lower())))
+    except Exception:
+        return (file_path.name, {})
+
+# =============================
+# Sidebar Chat (same logic), input glued to sidebar bottom & width
+# =============================
 with st.sidebar:
     st.subheader("Chat with API Docs")
 
     if "messages" not in st.session_state:
         st.session_state["messages"] = [("assistant", "Hi! Ask me anything about the API docs.")]
 
-    # chat history
     for role, msg in st.session_state["messages"]:
         with st.chat_message(role):
             st.markdown(msg)
 
-    # sticky input at bottom of sidebar spanning sidebar width
-    user_q = st.chat_input("Type your question…")
+    user_q = st.chat_input("Type your question…")  # rendered inside sidebar
     if user_q:
         st.session_state["messages"].append(("user", user_q))
         with st.chat_message("user"):
@@ -254,52 +280,63 @@ with st.sidebar:
                     st.code(s, language="text")
         st.session_state["messages"].append(("assistant", answer))
 
-# Make the chat input stick to bottom + full sidebar width
+# Make the sidebar chat input stick to bottom and match sidebar width
 st.markdown(
     """
     <style>
+      /* Keep the input within sidebar width */
       [data-testid="stSidebar"] [data-testid="stChatInput"] {
-        position: fixed; 
-        bottom: 0.75rem; 
-        left: 0.75rem; 
-        right: 0.75rem; 
-        width: auto; /* span sidebar width */
+        position: sticky;   /* respects sidebar width */
+        bottom: 0.75rem;
+        width: 100%;
       }
-      /* Add bottom padding so messages don't get hidden behind fixed input */
+      /* Add padding so history isn't hidden behind sticky input */
       [data-testid="stSidebar"] section { padding-bottom: 5rem; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# -----------------------------
+# =============================
 # Main: side-by-side layout
-# -----------------------------
+# =============================
 col1, col2 = st.columns(2, gap="large")
 
-# Left: API Documentation Viewer
+# Left: API Documentation Viewer (nested expanders)
 with col1:
     st.header("API Documentation Viewer")
-    st.markdown("Open a file to view its full content. The viewer is scrollable for large docs.")
+    st.markdown("Open a file to browse its endpoints. Use the **Show raw file** toggle for full source if needed.")
+
     files = sorted([p for p in DOC_DIR.glob("*") if p.is_file()])
     if not files:
         st.info("No API docs found in `data/`.")
     else:
         for f in files:
-            try:
-                content = f.read_text(encoding="utf-8")
-            except Exception as e:
-                st.warning(f"Could not read {f.name}: {e}")
-                continue
-
             with st.expander(f"{f.name}", expanded=False):
-                st.markdown(
-                    f"<div style='max-height:480px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>"
-                    f"{content}</div>",
-                    unsafe_allow_html=True,
-                )
+                title, groups = parse_openapi_for_view(f)
+                if groups:
+                    st.markdown(f"**Title:** {title}")
+                    for tag, ops in groups.items():
+                        with st.expander(f"{tag}", expanded=False):
+                            for op in ops:
+                                st.markdown(f"- `{op['method']} {op['path']}` &nbsp;— {op['summary'] or '*no summary*'}")
+                else:
+                    st.caption("No OpenAPI structure detected. Showing raw content below.")
 
-# Right: Duplicate Endpoint Checker
+                # raw content toggle
+                show_raw = st.checkbox(f"Show raw file: {f.name}", key=f"raw_{f.name}")
+                if show_raw:
+                    try:
+                        content = f.read_text(encoding="utf-8")
+                    except Exception as e:
+                        content = f"(Unable to read: {e})"
+                    st.markdown(
+                        f"<div style='max-height:420px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>"
+                        f"{content}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+# Right: Duplicate Endpoint Checker (threshold fixed internally at 0.90)
 with col2:
     st.header("Duplicate Endpoint Checker")
     st.markdown("Scan all OpenAPI files in `data/` for similar or overlapping endpoints.")
@@ -309,7 +346,7 @@ with col2:
     if st.button("Scan for duplicates", use_container_width=True):
         with st.spinner("Scanning OpenAPI specs…"):
             try:
-                rows = find_duplicates(threshold=0.90, top_k=k)  # fixed threshold (hidden)
+                rows = find_duplicates(threshold=0.90, top_k=k)
             except Exception as e:
                 rows = []
                 st.error(f"Embedding/scan failed: {e}")
