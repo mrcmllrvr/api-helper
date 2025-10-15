@@ -17,10 +17,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.title("📚 API Docs Chatbot (POC2)")
+st.title("API Docs Chatbot (POC2)")
 st.caption(
     "Ask questions about API docs in the `data/` folder. "
-    "Use the left section to view API documentation and run duplicate checks."
+    "Use the left section to view API documentation and check for duplicate endpoints."
 )
 
 DOC_DIR = Path("data")
@@ -147,7 +147,7 @@ Context:
     return answer, context_srcs
 
 # -----------------------------
-# Duplicate checker logic (unchanged)
+# Duplicate checker logic
 # -----------------------------
 def load_openapi_ops():
     ops = []
@@ -216,15 +216,10 @@ def find_duplicates(threshold: float = 0.90, top_k: int = 3):
     return rows
 
 # -----------------------------
-# Sidebar: Chat (unchanged logic)
+# Sidebar Chat
 # -----------------------------
 with st.sidebar:
     st.subheader("💬 Chat with API Docs")
-    texts, sources = load_repo_docs()
-    if not texts:
-        st.warning("No docs found in `data/`.")
-    else:
-        st.success(f"Loaded {len(texts)} chunks from {len(set(sources))} docs.")
 
     if "messages" not in st.session_state:
         st.session_state["messages"] = [("assistant", "Hi! Ask me anything about the API docs.")]
@@ -252,75 +247,62 @@ with st.sidebar:
         st.session_state["messages"].append(("assistant", answer))
 
 # -----------------------------
-# Main UI
+# Main: Side-by-side layout
 # -----------------------------
-st.header("📘 API Documentation Viewer")
-files = sorted([p for p in DOC_DIR.glob("*") if p.is_file()])
+col1, col2 = st.columns(2, gap="large")
 
-if not files:
-    st.info("No API docs found in `data/`.")
-else:
-    for f in files:
-        try:
-            content = f.read_text(encoding="utf-8")
-        except Exception as e:
-            st.warning(f"Could not read {f.name}: {e}")
-            continue
-
-        with st.expander(f"{f.name}", expanded=False):
-            # Search bar + highlight
-            search_term = st.text_input(f"🔍 Search in {f.name}", "", key=f"search_{f.name}")
-            highlighted_content = content
-
-            if search_term.strip():
-                # simple case-insensitive highlight
-                highlighted_content = highlighted_content.replace(
-                    search_term,
-                    f"🟨**{search_term}**🟨"
-                )
-                highlighted_content = highlighted_content.replace(
-                    search_term.lower(),
-                    f"🟨**{search_term.lower()}**🟨"
-                )
-                highlighted_content = highlighted_content.replace(
-                    search_term.upper(),
-                    f"🟨**{search_term.upper()}**🟨"
-                )
-
-            st.markdown(
-                f"<div style='max-height:420px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>"
-                f"{highlighted_content}</div>",
-                unsafe_allow_html=True,
-            )
-
-st.divider()
-
-# -----------------------------
-# Duplicate Endpoint Checker
-# -----------------------------
-st.header("🧭 Duplicate Endpoint Checker")
-st.write("Find similar or overlapping endpoints across OpenAPI specs.")
-
-thr = st.slider("Similarity threshold", 0.70, 0.99, 0.90, 0.01)
-k = st.slider("Max matches per endpoint", 1, 10, 3, 1)
-
-if st.button("Scan for duplicates"):
-    with st.spinner("Scanning OpenAPI specs…"):
-        try:
-            rows = find_duplicates(threshold=thr, top_k=k)
-        except Exception as e:
-            rows = []
-            st.error(f"Embedding/scan failed: {e}")
-
-    if not rows:
-        st.success("✅ No potential duplicates found.")
+# Left: API Documentation Viewer
+with col1:
+    st.header("API Documentation Viewer")
+    files = sorted([p for p in DOC_DIR.glob("*") if p.is_file()])
+    if not files:
+        st.info("No API docs found in `data/`.")
     else:
-        for a, b, s in rows[:200]:
-            st.markdown(
-                f"**{a['method']} {a['path']}**  ↔  **{b['method']} {b['path']}**  ·  similarity: `{s:.2f}`"
-            )
-            st.caption(f"{a['api_title']} ({a['api_file']})  ↔  {b['api_title']} ({b['api_file']})")
-            if a.get('summary') or b.get('summary'):
-                st.write(f"- {a['summary'] or '(no summary)'}")
-                st.write(f"- {b['summary'] or '(no summary)'}")
-            st.divider()
+        for f in files:
+            try:
+                content = f.read_text(encoding="utf-8")
+            except Exception as e:
+                st.warning(f"Could not read {f.name}: {e}")
+                continue
+
+            with st.expander(f"{f.name}", expanded=False):
+                search_term = st.text_input(f"🔍 Search in {f.name}", "", key=f"search_{f.name}")
+                highlighted_content = content
+                if search_term.strip():
+                    for variant in (search_term, search_term.lower(), search_term.upper()):
+                        highlighted_content = highlighted_content.replace(
+                            variant,
+                            f"<mark>{variant}</mark>"
+                        )
+
+                st.markdown(
+                    f"<div style='max-height:480px; overflow-y:auto; white-space:pre-wrap; font-family:monospace;'>"
+                    f"{highlighted_content}</div>",
+                    unsafe_allow_html=True,
+                )
+
+# Right: Duplicate Endpoint Checker
+with col2:
+    st.header("Duplicate Endpoint Checker")
+    st.caption("Similarity threshold is fixed at 0.90")
+
+    k = st.slider("Max matches per endpoint", 1, 10, 3, 1)
+
+    if st.button("Scan for duplicates", use_container_width=True):
+        with st.spinner("Scanning OpenAPI specs…"):
+            try:
+                rows = find_duplicates(threshold=0.90, top_k=k)
+            except Exception as e:
+                rows = []
+                st.error(f"Embedding/scan failed: {e}")
+
+        if not rows:
+            st.success("✅ No potential duplicates found.")
+        else:
+            st.info(f"Found {len(rows)} potential duplicate pairs.")
+            for a, b, s in rows[:200]:
+                with st.expander(f"{a['method']} {a['path']} ↔ {b['method']} {b['path']}  ·  similarity: {s:.2f}", expanded=False):
+                    st.caption(f"{a['api_title']} ({a['api_file']})  ↔  {b['api_title']} ({b['api_file']})")
+                    if a.get('summary') or b.get('summary'):
+                        st.write(f"- {a['summary'] or '(no summary)'}")
+                        st.write(f"- {b['summary'] or '(no summary)'}")
