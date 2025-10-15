@@ -298,7 +298,7 @@ st.markdown(
 # =============================
 # Main: side-by-side layout
 # =============================
-col1, col2 = st.columns(2, gap="large")
+col1, col2 = st.columns(2, 3)
 
 # Left: API Documentation Viewer (nested expanders)
 with col1:
@@ -406,4 +406,5 @@ with col2:
 
                     table_html.extend(["</tbody>", "</table>"])
                     st.markdown("\n".join(table_html), unsafe_allow_html=True)
+
 
